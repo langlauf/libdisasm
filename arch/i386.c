@@ -9,13 +9,38 @@ struct PLATFORM {
 	int endian;
 	char SP[4];
 	char IP[4];
+	char str1[4], str2[4];
 } intel = 
 	/* This can be set by an init routine, so that 16 and 32 bit disassembly
  	*  will be supported. For now, addr size is always 32 :) */
-	{  32, LITTLE_ENDIAN_ORD, "esp", "eip" } ;
+	{  32, LITTLE_ENDIAN_ORD, "esp", "eip", "esi", "edi" } ;
 
 /* Init routine : used to set internal disassembler values */
-int Init( void *param ) {
+int DisasmInit( void *param ) {
+	struct DISASM_ENG *settings = param;
+
+	/* set CPU specific information */
+	settings->endian = intel.endian;
+	settings->sz_addr = 4;
+	settings->sz_oper = 4;
+	settings->sz_inst = 0;
+	settings->sz_byte = 8;
+	settings->sz_word = 2;
+	settings->sz_dword = 4;
+	strcpy(settings->SP, intel.SP);
+	strcpy(settings->IP, intel.IP);
+
+	/* Init register info */
+	settings->StringRegsLen = 2;
+	settings->StringRegs = (char **) calloc(4, 2); /* TODO: free() this */
+	settings->StringRegs[0] = intel.str1;
+	settings->StringRegs[1] = intel.str2;
+
+	/* fill function pointers */
+	settings->disasm_addr = &DisasmAddress;
+	settings->get_prologue = &GetFunctionPrologue;
+	settings->get_epilogue = &GetFunctionEpilogue;
+	
 	return(1);
 }
 	
@@ -217,8 +242,8 @@ int DecodeModRM(BYTE *b, char *operand, int *op_flags, char **reg_table,
 		/* if op1 is a 32-bit displacement [mod 00 rm 101] */
 		} else if ((modrm.mod == MODRM_MOD_NODISP) && 
 					  (modrm.rm == MODRM_RM_NOREG)) {
-			/* unsure about this one */
-			*op_flags |= OP_REL | OP_UNSIGNED;
+			/* This is an RVA stored @ disp32!!! */
+			*op_flags |= OP_IND;
 			GetSizedOperand(operand, b + 1, size, OP_UNSIGNED);
 			count += size;
 			/* or is an SIB implied? goddamn intel... */
@@ -454,7 +479,8 @@ int InstDecode( instr *t, BYTE *buf, struct code *c, DWORD rva){
 				break;
 			case ADDRMETH_O  :	/* No ModR/M;operand is word/dword offset */
 				/* sprintf rel addr , set flag */
-				*dest_flg[x] |= OP_REL | OP_SIGNED;
+				/* NOTE: these are actually RVA's and not offsets to IP!!! */
+				*dest_flg[x] |= OP_DPTR | OP_SIGNED;
 				GetSizedOperand(dest_buf[x], buf + bytes, size, OP_SIGNED);
 				bytes += size;
 				break;
@@ -524,6 +550,5 @@ int DisasmAddress( BYTE *buf, BYTE tbl, struct code *c, DWORD rva){
 		/* A valid opcode cas been found; disassemble it */
 		size += InstDecode( &t[op], &buf[size], c, rva); 
 	}
-	
-	return size;
+	return(size);
 }

@@ -13,8 +13,35 @@ typedef unsigned int    DWORD;
 	bastard source distribution. Changes here MUST be propagated to the
 	bastard include files!!!!
 */
+#include <dirent.h>
+/* struct used during DisasmInit() */
+struct DISASM_ENG {   /* disassembler information */
+	int init;              // must set to '0' when a file is unloaded
+	char path[PATH_MAX];    // path to disassembler library
+	char name[PATH_MAX];    // name of disassembler lib [lib(target.cpu).so]
+	void * lib;             // handle to loaded library
+	/* ------------------  CPU Information  -------------------- */
+	int cpu_hi, cpu_lo;     // CPU high and low version numbers
+	int endian;             // 0 = BIG, 1 = LITTLE
+	int sz_addr;            // Default Size of Address in Bytes
+	int sz_oper;            // Default Size of Operand in Bytes
+	int sz_inst;            // Default Size of Instruction in Bytes
+	int sz_byte;            // Size of Machine Byte in Bits
+	int sz_word;            // Size of Machine Word in Bytes
+	int sz_dword;           // Size of Machine DoubleWord in Bytes
+	char SP[12];            // Mnemonic for Stack Pointer
+	char IP[12];            // Mnemonic for Instruction Pointer
+	/* ------------------ Register Tables ---------------------- */
+	char **StringRegs;	//  Registers used for strings
+	int StringRegsLen;	// # of entries in StringRegs table
+	/* ------------------ Library Functions -------------------- */
+	void *disasm_init;    // ptr to init routine
+	void *disasm_addr;    // ptr to disassembly routine
+	void *get_prologue;   // WARNING From here down are considered  
+	void *get_epilogue;   //         "optional"  
+};
 
-
+/* struct used during DisasmAddr*( */
 struct code {  /* size 100 */
     unsigned long    rva;
     unsigned short   flags;
@@ -81,21 +108,12 @@ struct code {  /* size 100 */
 
 /* exported functions */
 
-int DisasmAddr( BYTE *c, BYTE n, struct code *inst, DWORD rva );
-int DisasmInit(char *arg);
+int DisasmAddress( BYTE *c, BYTE n, struct code *inst, DWORD rva );
+int DisasmInit(void *arg);
 int GetFunctionPrologue(struct code **table);
 int GetFunctionEpilogue(struct code **table);
-int GetByteOrder();
-int GetAddrSize();
-int GetByteSize();
-int GetWordSize();
-int GetDwordSize();
-char* GetSP();
-char* GetIP();
 
 /* predef 's for use with dynamic loading */
 typedef int (*disfunc)(BYTE *, BYTE, struct code *, DWORD);
-typedef int (*disinit)(char *);
-typedef int (*getsz)();
-typedef char* (*getreg)();
+typedef int (*disinit)(void *);
 typedef int (*getcode)(struct code **);

@@ -11,8 +11,8 @@ instr tbl_Main[] = {
 { 0, INS_ARITH, ADDRMETH_E | OPTYPE_v | OP_W, ADDRMETH_G | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "add", 0, 0, 0},  /* 0x1 */
 { 0, INS_ARITH, ADDRMETH_G | OPTYPE_b | OP_W, ADDRMETH_E | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "add", 0, 0, 0},  /* 0x2 */
 { 0, INS_ARITH, ADDRMETH_G | OPTYPE_v | OP_W, ADDRMETH_E | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "add", 0, 0, 0},  /* 0x3 */
-{ 0, INS_ARITH, OP_HARDCODE | OP_W, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "add", "AL", 0, 0},  /* 0x4 */
-{ 0, INS_ARITH, OP_HARDCODE | OP_W, ADDRMETH_I | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "add", "EAX", 0, 0},  /* 0x5 */
+{ 0, INS_ARITH, OP_HARDCODE | OP_W, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "add", "al", 0, 0},  /* 0x4 */
+{ 0, INS_ARITH, OP_HARDCODE | OP_W, ADDRMETH_I | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "add", "eax", 0, 0},  /* 0x5 */
 {0, INS_STACK, OP_HARDCODE | OP_R, ARG_NONE, ARG_NONE, cpu_80386, "push", "es", 0, 0},  /* 0x6 */
 {0, INS_STACK, OP_HARDCODE | OP_W, ARG_NONE, ARG_NONE, cpu_80386, "pop", "es", 0, 0},  /* 0x7 */
 { 0, INS_LOGIC, ADDRMETH_E | OPTYPE_b | OP_W, ADDRMETH_G | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "or", 0, 0, 0},  /* 0x8 */
@@ -119,22 +119,22 @@ instr tbl_Main[] = {
 { 0, INS_MOVE|INS_SYSTEM|INS_ARRAY, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "insd", 0, 0, 0},  /* 0x6D */
 {0, INS_MOVE|INS_SYSTEM|INS_ARRAY, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "outsb", 0, 0, 0},  /* 0x6E */
 { 0, INS_MOVE|INS_SYSTEM|INS_ARRAY, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "outsd", 0, 0, 0},  /* 0x6F */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jo", 0, 0, 0},  /* 0x70 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jno", 0, 0, 0},  /* 0x71 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jc", 0, 0, 0},  /* 0x72 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jnc", 0, 0, 0},  /* 0x73 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jz", 0, 0, 0},  /* 0x74 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jnz", 0, 0, 0},  /* 0x75 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jbe", 0, 0, 0},  /* 0x76 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "ja", 0, 0, 0},  /* 0x77 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "js", 0, 0, 0},  /* 0x78 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jns", 0, 0, 0},  /* 0x79 */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jpe", 0, 0, 0},  /* 0x7A */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jpo", 0, 0, 0},  /* 0x7B */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jl", 0, 0, 0},  /* 0x7C */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jge", 0, 0, 0},  /* 0x7D */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jle", 0, 0, 0},  /* 0x7E */
-{ 0, INS_COND, ADDRMETH_I | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jg", 0, 0, 0},  /* 0x7F */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jo", 0, 0, 0},  /* 0x70 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jno", 0, 0, 0},  /* 0x71 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jc", 0, 0, 0},  /* 0x72 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jnc", 0, 0, 0},  /* 0x73 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jz", 0, 0, 0},  /* 0x74 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jnz", 0, 0, 0},  /* 0x75 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jbe", 0, 0, 0},  /* 0x76 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "ja", 0, 0, 0},  /* 0x77 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "js", 0, 0, 0},  /* 0x78 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jns", 0, 0, 0},  /* 0x79 */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jpe", 0, 0, 0},  /* 0x7A */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jpo", 0, 0, 0},  /* 0x7B */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jl", 0, 0, 0},  /* 0x7C */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jge", 0, 0, 0},  /* 0x7D */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jle", 0, 0, 0},  /* 0x7E */
+{ 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jg", 0, 0, 0},  /* 0x7F */
 {2, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x80 */
 {3, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x81 */
 {4, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x82 */
@@ -235,10 +235,10 @@ instr tbl_Main[] = {
 { 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "loopz", 0, 0, 0},  /* 0xE1 */
 { 0, INS_BRANCH, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "loop", 0, 0, 0},  /* 0xE2 */
 { 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jcxz", 0, 0, 0},  /* 0xE3 */
-{ 0, INS_MOVE|INS_SYSTEM, OP_HARDCODE | OP_W, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "in", "AL", 0, 0},  /* 0xE4 */
-{ 0, INS_MOVE|INS_SYSTEM, OP_HARDCODE | OP_W, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "in", "EAX", 0, 0},  /* 0xE5 */
-{ 0, INS_MOVE|INS_SYSTEM, ADDRMETH_I | OPTYPE_b | OP_W, OP_HARDCODE | OP_R, ARG_NONE, cpu_80386, "out", 0, "AL", 0},  /* 0xE6 */
-{ 0, INS_MOVE|INS_SYSTEM, ADDRMETH_I | OPTYPE_b | OP_W, OP_HARDCODE | OP_R, ARG_NONE, cpu_80386, "out", 0, "EAX", 0},  /* 0xE7 */
+{ 0, INS_MOVE|INS_SYSTEM, OP_HARDCODE | OP_W, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "in", "al", 0, 0},  /* 0xE4 */
+{ 0, INS_MOVE|INS_SYSTEM, OP_HARDCODE | OP_W, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "in", "eax", 0, 0},  /* 0xE5 */
+{ 0, INS_MOVE|INS_SYSTEM, ADDRMETH_I | OPTYPE_b | OP_W, OP_HARDCODE | OP_R, ARG_NONE, cpu_80386, "out", 0, "al", 0},  /* 0xE6 */
+{ 0, INS_MOVE|INS_SYSTEM, ADDRMETH_I | OPTYPE_b | OP_W, OP_HARDCODE | OP_R, ARG_NONE, cpu_80386, "out", 0, "eax", 0},  /* 0xE7 */
 { 0, INS_SUB, ADDRMETH_J | OPTYPE_v | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "call", 0, 0, 0},  /* 0xE8 */
 { 0, INS_BRANCH, ADDRMETH_J | OPTYPE_v | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jmp", 0, 0, 0},  /* 0xE9 */
 { 0, INS_BRANCH, ADDRMETH_A | OPTYPE_p | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jmp", 0, 0, 0},  /* 0xEA */
