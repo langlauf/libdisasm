@@ -33,6 +33,7 @@ void ext_arch_init(void *param) {
 		settings->FP = 5 + REG_WORD_OFFSET;
 		settings->IP = REG_IP_INDEX;
 		settings->reg_gen = REG_WORD_OFFSET;
+		mode_16 = 1;
 	} else {
 		settings->sz_addr = 4;
 		settings->sz_oper = 4;
@@ -585,10 +586,6 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, qword rva) {
 
 	/* clear global ADDRESS EXPRESSION struct */
 	memset(&expr, 0, sizeof (struct addr_exp));
-	/* set addressing mode */
-	if (settings->options & LEGACY_MODE) {
-		mode_16 = 1;
-	}
 
 
 	/*  ++++   1. Copy mnemonic and mnemonic-flags to CODE struct */
@@ -863,6 +860,13 @@ int disasm_addr(BYTE * buf, int tbl, struct code *c, qword rva) {
 	int x, size = 1;	/* Automatically advance position 1 byte */
 	instr *t;		/* table in i386.opcode.map */
 
+
+	/* reset mode to default */
+	if (settings->options & LEGACY_MODE) {
+		mode_16 = 1;
+	} else {
+		mode_16 = 0;
+	}
 
 	if (!tbl &&		/* only do this for the main opcode table */
 	    (settings->options & IGNORE_NULLS) &&

@@ -9,14 +9,21 @@ B A S T A R D                                            disassembly environment
 ================================================================================
  Contents
 
- 1. 
- 2.
+ 1. Introduction
+ 2. INT_CODE Object Definition
+ 3. Virtual Registers
+ 4. Operand Types
+ 5. Instruction Format
+ 6. Standard (Processor) Instructions
+ 7. Non-standard Instructions (Directives)
+ 8. Supported Traps
+ 9. Implementation: Intel to INT_CODE
 
 
 
 ================================================================================
- INTRODUCTION
--------------------------------------------------------------------------------
+ Introduction
+
 
 	dream on. here's the lowdown:
 		* no address expressions are allowed
@@ -29,8 +36,9 @@ B A S T A R D                                            disassembly environment
 
 
 
- INT_CODE OBJECT DEFINITION
--------------------------------------------------------------------------------
+================================================================================
+ INT_CODE Object Definition
+
 
 This is how each line of intermediate code will be represented internally:
 
@@ -43,16 +51,17 @@ This is how each line of intermediate code will be represented internally:
 			/* operand types */
 		unsigned long sType, dType, aType;
 			/* housekeeping stuff */
-		unsigned long fn_id;			/* function owning this */
-		unsigned long addr_id;			/* addr in original asm */ 
-		unsigned int order;			/* order after addr_id */
-		unsigned long cmt_id;			/* associated comment */
+		unsigned long fn_id;		/* function owning this */
+		unsigned long addr_id;		/* addr in original asm */ 
+		unsigned int order;		/* order after addr_id */
+		unsigned long cmt_id;		/* associated comment */
 	};
 
 
 
- VIRTUAL REGISTERS
--------------------------------------------------------------------------------
+================================================================================
+ Virtual Registers
+
 
 The following groups of registers will be used in INT_CODE representation:
 
@@ -89,8 +98,9 @@ The following groups of registers will be used in INT_CODE representation:
 
 
 
- OPERAND TYPES
--------------------------------------------------------------------------------
+================================================================================
+ Operand Types
+
 
 The operand types are of the following format:
 
@@ -172,8 +182,9 @@ objects.
 
 
 
- INSTRUCTION FORMAT
--------------------------------------------------------------------------------
+================================================================================
+ Instruction Format
+
 
 Since this will never be a compilable architecture, there is no need for a very
 efficient instruction set. Each instruction is 4 bytes, and the operands are 
@@ -199,8 +210,9 @@ Here is the basic opcode format, in 4 bytes:
 
 
 
-  STANDARD (PROCESSOR) INSTRUCTIONS
--------------------------------------------------------------------------------
+================================================================================
+  Standard (Processor) Instructions
+
 
 Fields
 	Syntax : This is in the format
@@ -209,7 +221,7 @@ Fields
 	              r 	-- register operand
 	              m	-- memory operand [i.e., code or address label]
 	              i  -- immediate operand
-	         Note that the first operand is always 'src', and 'dest' is always
+	         Note that the first operand is always 'src', 'dest' is always
 	         the last operand; in 2-operand instructions, the second operand
 	         is either 'arg' or 'dest' depending on context, i.e. whether or 
 	         not the argument is written.
@@ -230,23 +242,23 @@ Fields
 	             
 		Operand sizes are:
 			enum op_size { 	none, 
-				byte, ubyte, 	/* 1, 2 */    /* 00001b == signed */
+				byte, ubyte, 	/* 1, 2 *//* 00001b == signed */
 				hword, uhword,	/* 3, 4 */
 				word, uword, 	/* 5, 6 */
 				dword, udword,	/* 7, 8 */
 				qword, uqword,	/* 9, A */
-				ext_prec		/* B */    /* extended precision */
+				ext_prec	/* B */ /* extended precision */
 			};
 
 		Condition codes are:
 			char *branch_type[] { 	
-					"n",	"a",	/*  NEVER, ALWAYS  */
-					"e",	"ne",	/*  EQUAL, NOT EQUAL */
-					"g",	"le",	/*  GREATER, LESSER/EQUAL */
-					"l",	"ge",	/*  LESSER, GREATER/EQUAL */
-					"neg",	"pos",	/*  NEGATIVE, POSITIVE */
-					"cs",	"cc",	/*  CARRY, NO CARRY */
-					"vs",	"vc"	/*  OVERFLOW, NO OVERFLOW */
+				"n",	"a",	/*  NEVER, ALWAYS  */
+				"e",	"ne",	/*  EQUAL, NOT EQUAL */
+				"g",	"le",	/*  GREATER, LESSER/EQUAL */
+				"l",	"ge",	/*  LESSER, GREATER/EQUAL */
+				"neg",	"pos",	/*  NEGATIVE, POSITIVE */
+				"cs",	"cc",	/*  CARRY, NO CARRY */
+				"vs",	"vc"	/*  OVERFLOW, NO OVERFLOW */
 			};
 
 	Variants: Instructions with condition codes or operand-size specifications
@@ -880,8 +892,9 @@ xor 		Exclusive OR
 
 
 
-  NON-STANDARD INSTRUCTIONS (DIRECTIVES)
--------------------------------------------------------------------------------
+================================================================================
+  Non-standard Instructions (Directives)
+
 
 .label
 	Generate a symbolic code address for the current location
@@ -999,8 +1012,9 @@ xor 		Exclusive OR
 
 
 
- SUPPORTED TRAPS
--------------------------------------------------------------------------------
+================================================================================
+ Supported Traps
+
 
 	Basically, every INT in Intel as well as the IN and OUT instructions will
 be implemented as a trap; these are OS specific, and so must be handled in the
@@ -1011,8 +1025,9 @@ We'll see.
 
 
 
+================================================================================
  Implementation: Intel to INT_CODE
--------------------------------------------------------------------------------
+
 
 Please reference
 	src/arch/i386/i386_intcode.c
