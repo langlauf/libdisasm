@@ -51,6 +51,7 @@ int prefix_table[13][2] = {
    { 0,    0}
 };
 
+/* TODO: is this still usd?? */
 /* Register sets for R/M == 3 and for REG bytes */ 
 char *reg_dword[] = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
 char *reg_word[]    = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
@@ -71,11 +72,12 @@ char *reg_fpu[]   = {"st(0)","st(1)","st(2)","st(3)","st(4)","st(5)","st(6)","st
 #define cpu_8086         0x00001000
 #define cpu_80286        0x00002000
 #define cpu_80386        0x00003000
-#define cpu_80486        0x00004000
-#define cpu_PENTIUM      0x00005000
-#define cpu_PENTPRO      0x00006000
-#define cpu_PENTMMX      0x00007000
-#define cpu_PENTIUM2     0x00008000
+#define cpu_80387        0x00004000
+#define cpu_80486        0x00005000
+#define cpu_PENTIUM      0x00006000
+#define cpu_PENTPRO      0x00007000
+#define cpu_PENTMMX      0x00008000
+#define cpu_PENTIUM2     0x00009000
 /* Operand classifications, per dislib.h, go to 0x0900 */
 #define OPFLAGS_MASK 0x0000FFFF
 /* Operand Addressing Methods, per intel manual */
@@ -107,7 +109,7 @@ char *reg_fpu[]   = {"st(0)","st(1)","st(2)","st(3)","st(4)","st(5)","st(6)","st
 #define OP_SIZE_32   0x00800000
 
 /* Operand Types, per intel manual */
-#define OPTYPE_MASK   0x0F000000
+#define OPTYPE_MASK   0xFF000000
 
 #define OPTYPE_a   0x01000000
 #define OPTYPE_b   0x02000000
@@ -123,6 +125,13 @@ char *reg_fpu[]   = {"st(0)","st(1)","st(2)","st(3)","st(4)","st(5)","st(6)","st
 #define OPTYPE_si   0x0C000000
 #define OPTYPE_v   0x0D000000
 #define OPTYPE_w   0x0E000000
+
+/* ones I added for FPU instructions */
+#define OPTYPE_fs	0x10000000	/* pointer to single-real*/
+#define OPTYPE_fd	0x20000000	/* pointer to double real */
+#define OPTYPE_fe	0x30000000	/* pointer to extended real */
+#define OPTYPE_fb	0x40000000	/* pointer to packed BCD */
+#define OPTYPE_fv	0x50000000	/* pointer to FPU env: 14/28-bytes */
 
 
 /* -------------------------------- ModR/M, SIB */
@@ -234,62 +243,56 @@ int disasm_addr( BYTE *buf, int tbl, struct code *c, long rva);
 /* Convenience struct for opcode tables */
 typedef struct x86_table {             //Assembly instruction tables
    instr *table;      //Pointer to table of instruction encodings
-   char divisor;            // number to divide by for look up
-   char mask;               // bit mask for look up
-   char minlim,maxlim;      // limits on min/max entries.
-   char modrmpos;           // modrm byte position plus
+   unsigned char shift;              // amount to shift modrm byte
+	unsigned char mask;               // bit mask for look up
+   unsigned char minlim,maxlim;      // limits on min/max entries.
 } asmtable;
 
 
 // if .mnem == NULL then .flags = offset in table
 asmtable tables86[]={ 
-{tbl_Main,0,0xff,0,0xff,0},               /* 0 */
-  {tbl_0F,0,0xff,0,0xff,1},
-  {tbl_80,8,0x07,0,0xff,0},
-  {tbl_81,8,0x07,0,0xff,0},
-  {tbl_82,8,0x07,0,0xff,0},
-  {tbl_83,8,0x07,0,0xff,0},               /* 5 */
-  {tbl_C0,8,0x07,0,0xff,0},
-  {tbl_C1,8,0x07,0,0xff,0},
-  {tbl_D0,8,0x07,0,0xff,0},
-  {tbl_D1,8,0x07,0,0xff,0},
-  {tbl_D2,8,0x07,0,0xff,0},               /* 10 */
-  {tbl_D3,8,0x07,0,0xff,0},
-  {tbl_F6,8,0x07,0,0xff,0},
-  {tbl_F7,8,0x07,0,0xff,0},
-  {tbl_FE,8,0x07,0,0xff,0},
-  {tbl_FF,8,0x07,0,0xff,0},               /* 15 */
-  {tbl_0F00,8,0x07,0,0xff,1},
-  {tbl_0F01,8,0x07,0,0xff,1},
-  {tbl_0F18,8,0x07,0,0xff,1},
-  {tbl_0F71,8,0x07,0,0xff,1},
-  {tbl_0F72,8,0x07,0,0xff,1},      /* 20 */
-  {tbl_0F73,8,0x07,0,0xff,1},
-  {tbl_0FAE,8,0x07,0,0xff,1},
-  {tbl_0FBA,8,0x07,0,0xff,1},
-  //{tbl_0FC2,0,0x00,0,0xff,1},
-  {tbl_0FC7,8,0x07,0,0xff,1}      /* 25 */
-  //{tbl_D8a,TABLE_EXT,0xd8,0,8,0x07,0,0xbf,0},        /* CoProc Tables */
-  //{tbl_D8b,TABLE_EXT,0xd8,0,8,0x1f,0xc0,0xff,0},
-  //{tbl_D9a,TABLE_EXT,0xd9,0,8,0x07,0,0xbf,0},
-  //{tbl_D9b,TABLE_EXT,0xd9,0,8,0x1f,0xc0,0xff,0},
-  //{tbl_D9c,TABLE_EXT,0xd9,0,1,0xff,0xc0,0xff,1},      /* 30 */
-  //{tbl_DAa,TABLE_EXT,0xda,0,8,0x07,0,0xbf,0},
-  //{tbl_DAb,TABLE_EXT,0xda,0,8,0x1f,0xc0,0xff,0},
-  //{tbl_DAc,TABLE_EXT,0xda,0,1,0xff,0xc0,0xff,1},
-  //{tbl_DBa,TABLE_EXT,0xdb,0,8,0x07,0,0xbf,0},
-  //{tbl_DBb,TABLE_EXT,0xdb,0,8,0x1f,0xc0,0xff,0},      /* 35 */
-  //{tbl_DBc,TABLE_EXT,0xdb,0,1,0xff,0xc0,0xff,1},
-  //{tbl_DCa,TABLE_EXT,0xdc,0,8,0x07,0,0xbf,0},
-  //{tbl_DCb,TABLE_EXT,0xdc,0,8,0x1f,0xc0,0xff,0},
-  //{tbl_DDa,TABLE_EXT,0xdd,0,8,0x07,0,0xbf,0},
-  //{tbl_DDb,TABLE_EXT,0xdd,0,8,0x1f,0xc0,0xff,0},      /* 40 */
-  //{tbl_DEa,TABLE_EXT,0xde,0,8,0x07,0,0xbf,0},
-  //{tbl_DEb,TABLE_EXT,0xde,0,8,0x1f,0xc0,0xff,0},
-  //{tbl_DEc,TABLE_EXT,0xde,0,1,0xff,0xc0,0xff,1},
-  //{tbl_DFa,TABLE_EXT,0xdf,0,8,0x07,0,0xbf,0},
-  //{tbl_DFb,TABLE_EXT,0xdf,0,8,0x1f,0xc0,0xff,0},      /* 45 */
-  //{tbl_DFc,TABLE_EXT,0xdf,0,1,0xff,0xc0,0xff,1}
+  {tbl_Main,0,0xff,0,0xff},              /* 0 */
+  {tbl_0F,0,0xff,0,0xff},
+  {tbl_80,3,0x07,0,0xff},
+  {tbl_81,3,0x07,0,0xff},
+  {tbl_82,3,0x07,0,0xff},
+  {tbl_83,3,0x07,0,0xff},               /* 5 */
+  {tbl_C0,3,0x07,0,0xff},
+  {tbl_C1,3,0x07,0,0xff},
+  {tbl_D0,3,0x07,0,0xff},
+  {tbl_D1,3,0x07,0,0xff},
+  {tbl_D2,3,0x07,0,0xff},               /* 10 */
+  {tbl_D3,3,0x07,0,0xff},
+  {tbl_F6,3,0x07,0,0xff},
+  {tbl_F7,3,0x07,0,0xff},
+  {tbl_FE,3,0x07,0,0xff},
+  {tbl_FF,3,0x07,0,0xff},               /* 15 */
+  {tbl_0F00,3,0x07,0,0xff},
+  {tbl_0F01,3,0x07,0,0xff},
+  {tbl_0F18,3,0x07,0,0xff},
+  {tbl_0F71,3,0x07,0,0xff},
+  {tbl_0F72,3,0x07,0,0xff},      			/* 20 */
+  {tbl_0F73,3,0x07,0,0xff},
+  {tbl_0FAE,3,0x07,0,0xff},
+  {tbl_0FBA,3,0x07,0,0xff},
+  {tbl_0FC7,3,0x07,0,0xff},					/* removed {tbl_0FC2,0,0x00,0,0xff,1} */
+  {tbl_0FC7,3,0x07,0,0xff},      			/* 25 */
+  {tbl_fpuD8_00BF,3,0x07,0,0xbf},			/* CoProc Tables */
+  {tbl_fpuD8_rest,0,0xff,0xc0,0xff},
+  {tbl_fpuD9_00BF,3,0x07,0,0xbf},
+  {tbl_fpuD9_rest,0,0xff,0xc0,0xff},
+  {tbl_fpuDA_00BF,3,0x07,0,0xbf},			/* 30 */
+  {tbl_fpuDA_rest,0,0xff,0xc0,0xff},
+  {tbl_fpuDB_00BF,3,0x07,0,0xbf},
+  {tbl_fpuDB_rest,0,0xff,0xc0,0xff},
+  {tbl_fpuDC_00BF,3,0x07,0,0xbf},
+  {tbl_fpuDC_rest,0,0xff,0xc0,0xff},		/* 35 */
+  {tbl_fpuDD_00BF,3,0x07,0,0xbf},
+  {tbl_fpuDD_rest,0,0xff,0xc0,0xff},
+  {tbl_fpuDE_00BF,3,0x07,0,0xbf},
+  {tbl_fpuDE_rest,0,0xff,0xc0,0xff},
+  {tbl_fpuDF_00BF,3,0x07,0,0xbf},			/* 40 */
+  {tbl_fpuDF_rest,0,0xff,0xc0,0xff}
 };
 
 /* Module options */

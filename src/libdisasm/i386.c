@@ -311,7 +311,7 @@ int DecodeModRM(BYTE *b, long *op, int *op_flags, int reg_type,
       if ( modrm.mod ==  MODRM_MOD_NOEA ) { /* if mod == 11 */
          /* IF MOD == Register Only, no Address Expression */
          *op = modrm.rm + reg_type; /* operand to register ID */
-         *op_flags &= 0xFFFF0FFF;
+         *op_flags &= 0xFFFFF0FF;
          *op_flags |= OP_REG;       /* flag operand as Register */
       } else if (modrm.mod == MODRM_MOD_NODISP) { /* if mod == 00 */
          /* IF MOD == No displacement, just Indirect Register */
@@ -339,7 +339,7 @@ int DecodeModRM(BYTE *b, long *op, int *op_flags, int reg_type,
             /* Flag AddrExpression as having a REGISTER for BASE */
             expr.flags |= ADDREXP_REG << ADDEXP_BASE_OFFSET;
          }
-         *op_flags &= 0xFFFF0FFF;
+         *op_flags &= 0xFFFFF0FF;
          *op_flags |= OP_EXPR; /* flag operand as Address Expression */
       } else { 
          if (modrm.rm == MODRM_RM_SIB) { /* rm == 100 */
@@ -374,7 +374,7 @@ int DecodeModRM(BYTE *b, long *op, int *op_flags, int reg_type,
             }
             count += size;  /* add sizeof displacement to count */
          }
-         *op_flags &= 0xFFFF0FFF;
+         *op_flags &= 0xFFFFF0FF;
          *op_flags |= OP_EXPR; /* flag operand as Address Expression */
       }
       if ( expr.flags ) {
@@ -390,7 +390,6 @@ int DecodeModRM(BYTE *b, long *op, int *op_flags, int reg_type,
          *op_flags |= OP_REG;
          count = 0;
    }
-
    return(count);       /* number of bytes found in instruction */
 }
 
@@ -428,15 +427,15 @@ int InstDecode( instr *t, BYTE *buf, struct code *c, DWORD rva){
     *
    /* bytes: size of curr instr; size: operand size */
    int x, bytes=0, size=0, op_size_flag = 0;
-   int addr_size, op_size, op_notes; /* for override prefixes */
+   unsigned int addr_size, op_size, op_notes; /* for override prefixes */
    unsigned int addr_meth, op_type, prefix;
    int genRegs;
    /* tables used to address each operands with the for loop */
-   int operands[3] = {    t->dest,       t->src,       t->aux      };
-   int op_flags[3] = {    t->destFlg,    t->srcFlg,    t->auxFlg   };
+   unsigned int operands[3] = {    t->dest,       t->src,       t->aux      };
+   unsigned int op_flags[3] = {    t->destFlg,    t->srcFlg,    t->auxFlg   };
    /* destination buffers in the CODE struct */
-   long *dest_buf[3] = {   &c->dest,      &c->src,      &c->aux     };
-   int *dest_flg[3] = {   &c->destType,  &c->srcType,  &c->auxType };
+   unsigned long *dest_buf[3] = {   &c->dest,      &c->src,      &c->aux     };
+   unsigned int *dest_flg[3] = {   &c->destType,  &c->srcType,  &c->auxType };
    
 
    /* clear global ADDRESS EXPRESSION struct */
@@ -552,6 +551,26 @@ int InstDecode( instr *t, BYTE *buf, struct code *c, DWORD rva){
          case OPTYPE_pi  :   /* qword mmx register */
             break;
          case OPTYPE_si  :   /* dword integer register */
+            break;
+			case OPTYPE_fs  :  /* single-real*/
+            size = 4;
+            op_size_flag = OP_SREAL; 
+            break;
+			case OPTYPE_fd  :   /* double real */
+            size = 4;
+            op_size_flag = OP_DREAL; 
+            break;
+			case OPTYPE_fe  :   /* extended real */
+            size = 4;
+            op_size_flag = OP_XREAL; 
+            break;
+			case OPTYPE_fb  :		/* packed BCD */
+				size = 4;
+            op_size_flag = OP_BCD; 
+            break;
+			case OPTYPE_fv  :   /* FPU env: 14/28-bytes */
+				size = 4;
+            op_size_flag = OP_FPENV; 
             break;
          case 0:
          default:
@@ -760,16 +779,30 @@ int disasm_addr( BYTE *buf, int tbl, struct code *c, long rva){
        * THEN return 0 (END_OF_DISASSEMBLY) */
       return(0); /* 4 00 bytes in a row? This isn't code! */
    
+	if (  (tables86[tbl].maxlim < 0xff)  && op > tables86[tbl].maxlim ) {
+		/* this is one of the fucking FPU tables out of the 00-BH range */
+		/* did I mention how much I hate Intel? Fucking wankers... */
+		tbl++;
+	} 
+
+	if ( tables86[tbl].minlim ) {
+		/* this is one of the ultra-lame FPU tables [range C0-FF] */
+		op -= tables86[tbl].minlim;
+	}
+	
    t = tables86[tbl].table;   /* get table from Master Table Table */
-   /* Make magic adjustments for skewed tables  */
-   if (tables86[tbl].divisor) {op /=  tables86[tbl].divisor; };
-   if (tables86[tbl].mask) {
-           /* opcode extension uses modR/M reg field: mask out rest of byte */
-           /* This byte will be added to size by DecocdeModRM; therefore
-            * decrease the size here so the instr isn't 1 byte too large */
-           if ( (unsigned char) tables86[tbl].mask != 0xFF) size --;
-           op &= tables86[tbl].mask;
-   }
+
+	/* shift opcode extension into lowest bits [convert to table index] */
+	op >>= tables86[tbl].shift;	
+
+   /* This byte will be added to size by DecocdeModRM; therefore
+    * decrease the size here so the instr isn't 1 byte too large */
+   if ( (unsigned char) tables86[tbl].mask != 0xFF ) {
+				  size --;			/* Note: FPU w/ 0xFF mask use whole modR/M */
+	}
+	
+	/* mask out bits for opcode [0xFF] or modr/m opcode extension [0x07] */
+   op &= tables86[tbl].mask;	
    
    x = 0; /* reset return value to 0 */
    /* use index 'op' into table 't'to make further decisions */
@@ -797,6 +830,7 @@ int disasm_addr( BYTE *buf, int tbl, struct code *c, long rva){
       /* ELSE if this opcode is an escape to another opcode table */
       /* Recurse into new table, Setting Opcode to next byte in stream  */
        x = disasm_addr(&buf[1], t[op].table, c, rva);
+	
    } else if ( ! t[op].mnemonic[0]  ) {
       /* ELSE if this is an invalid opcode */
       x  = 0;  /* return 0 bytes */
@@ -805,6 +839,7 @@ int disasm_addr( BYTE *buf, int tbl, struct code *c, long rva){
       /* ELSE this is a valid opcode: disassemble it */
       x =  1 + InstDecode( &t[op], &buf[size], c, rva); 
       size--;  /* quick kludge so the if(x) turns out ok :) */
+
    }
    if ( ! x )
       /* IF an invalid opcode was found */

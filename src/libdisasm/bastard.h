@@ -17,10 +17,10 @@ struct code {
     long    dest;
     long    src;
     long    aux;
-    int     mnemType;
-    int     destType;
-    int     srcType;
-    int     auxType;
+    unsigned int     mnemType;
+    unsigned int     destType;
+    unsigned int     srcType;
+    unsigned int     auxType;
     unsigned long    destConst;
     unsigned long    srcConst;
     unsigned long    auxConst;
@@ -63,6 +63,12 @@ struct code_effect {  /* size 16 */
 #define OP_WORD      0x200000   /* operand is 16 bits/2 bytes */
 #define OP_DWORD     0x300000   /* operand is 32 bits/4 bytes */
 #define OP_QWORD     0x400000   /* operand is 64 bits/8 bytes */
+#define OP_SREAL		0x500000	  /* operand is 4 bytes */
+#define OP_DREAL		0x600000	  /* operand is 8 bytes */
+#define OP_XREAL		0x700000	  /* operand is 10 bytes */
+#define OP_BCD			0x800000	  /* operand is 10 bytes */				
+#define OP_SIMD		0x900000	  /* operand is 16 bytes */				
+#define OP_FPENV		0xA00000	  /* operand is 28 bytes */				
 /* operand masks */
 #define OP_PERM_MASK 0x0000007  /* perms are NOT mutually exclusive */
 #define OP_TYPE_MASK 0x0000F00  /* types are mututally exclusive */
