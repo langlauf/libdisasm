@@ -337,22 +337,27 @@ static int modrm_decode(BYTE * b, qword *op, int *op_flags, int reg_type,
 	int disp = 0;
 	int count = 1;		/* # of bytes decoded [1 for modR/M byte] */
 
-
 	byte_decode(*b, &modrm);	/* get bitfields */
+
 	if (mode_16) {
 		/* gah! 16 bit mode! */
 		return(modrm_decode16(b, op, op_flags, reg_type, size, flags, 
 					&modrm) );
 	}
 
-	if (flags != MODRM_EA || modrm.mod == MODRM_MOD_NOEA) {
-		/* set operand to register ID */
-		*op = (qword) modrm.reg + reg_type;
+	if (flags != MODRM_EA || modrm.mod == MODRM_MOD_NOEA) { /* mod == 11 */
 		*op_flags &= 0xFFFFF0FF;
 		*op_flags |= OP_REG;
+		/* set operand to register ID */
 		/* IF this is mod 11b, increase insn size by 1 for modrm byte */
-		if ( flags != MODRM_reg && modrm.mod == MODRM_MOD_NOEA )
+		if ( flags != MODRM_reg && modrm.mod == MODRM_MOD_NOEA ) {
+			/* register ID is set by rm bitfield */
+			*op = (qword) modrm.rm + reg_type;
 			return(1);
+		}
+
+		/* register ID is set by reg bitfield */
+		*op = (qword) modrm.reg + reg_type;
 		/* ELSE the 'reg' field is used by a second operand */
 		return( 0 ); 
 	}
@@ -662,12 +667,13 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, qword rva) {
 
 		/* override default register set based on Operand Type */
 		/* this allows mixing of 8, 16, and 32 bit regs in insn */
-		if (size == 1)
+		if (size == 1) {
 			g_regs = REG_BYTE_OFFSET;
-		else if (size == 2)
+		} else if (size == 2) {
 			g_regs = REG_WORD_OFFSET;
-		else
+		} else {
 			g_regs = REG_DWORD_OFFSET;
+		}
 
 
 		/* ++ Do Operand Addressing Method / Decode operand ++ */
