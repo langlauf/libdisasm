@@ -3,12 +3,91 @@
 #include <string.h>
 #include "i386.h"
 
-/* This can be set by an init routine, so that 16 and 32 bit disassembly
- * will be supported. For now, it is always 32 :) */
-int default_addr_mode = 32;
+
+struct PLATFORM {
+	int addr_size;
+	int endian;
+	char SP[4];
+	char IP[4];
+} intel = 
+	/* This can be set by an init routine, so that 16 and 32 bit disassembly
+ 	*  will be supported. For now, addr size is always 32 :) */
+	{  32, LITTLE_ENDIAN_ORD, "esp", "eip" } ;
+
+/* Init routine : used to set internal disassembler values */
+int Init( void *param ) {
+	return(1);
+}
+	
+/* --- Exported Information Routines -------------------------------------*/
+/* These are used to pass information about the platform to the higher-level
+ * disassembler  -- there will probably be more added when additional CPUs
+ * are supported */
+int GetFunctionPrologue(struct code **table){
+	/* This function and the following are kind of tricky. They fill 'table'
+	 * with an array of CODE structs; within the array, each 'prologue' is
+	 * represented by a series of CODE structs followed by a NULL code struct.
+	 * The number returned is the number of prologues. See the function 
+	 * recognition pass for details on how to use these routines */
+	struct code *t; 
+	int num = 2;
+	int i, j;
+	
+	t = (struct code *) calloc( sizeof( struct code ), 6);
+	/* ------------------------------ customize this part only !! */
+	/* prolog1:  push esp
+	 *           mov  ebp, esp
+	 *           sub  esp, ??? */
+	strcpy( t[0].mnemonic, "push");
+	strcpy( t[0].dest, "ebp");
+	strcpy( t[1].mnemonic, "mov");
+	strcpy( t[1].dest, "ebp");
+	strcpy( t[1].src, "esp");
+	strcpy( t[2].mnemonic, "sub");
+	strcpy( t[2].dest, "esp");
+	/* prolog2: enter */ 
+	strcpy( t[4].mnemonic, "enter");
+	/* ------------------------------- end customize-part */
+
+	*table = t;
+	return(num);
+}
+
+int GetFunctionEpilogue(struct code **table){
+	struct code *t; 
+	int num = 3;
+	int i, j;
+	
+	t = (struct code *) calloc( sizeof( struct code ), 6);
+	/* ------------------------------ customize this part only !! */
+	/* epilog1:  ret */
+	strcpy( t[0].mnemonic, "ret");
+	/* epilog2: retf */ 
+	strcpy( t[2].mnemonic, "retf");
+	/* epilog3: iret */ 
+	strcpy( t[4].mnemonic, "iret");
+	/* ------------------------------- end customize-part */
+
+	*table = t;
+	return(num);
+}
+
+int GetByteOrder(){ 		return( intel.endian ); }
+
+int GetAddrSize(){ 		return( intel.addr_size ); }
+/* return byte size, in bits */
+int GetByteSize(){ 		return(8); }
+/* return machine word size, in bytes */
+int GetWordSize(){ 		return(2); }
+/* return dword size, in bytes */
+int GetDwordSize(){ 		return(4); }
+/* Get Register used for Stack Pointer */
+char* GetSP(){ 			return( intel.SP ); }
+/* Get Register used for Instruction Pointer */
+char* GetIP(){ 			return( intel.IP ); }
 
 
-
+/* ------------ Disassembly Routines ----------------------------------- */
 int GetSizedOperand( char *str, BYTE *buf, int size, int flag) {
 	int i;
 	short s;
@@ -139,7 +218,7 @@ int DecodeModRM(BYTE *b, char *operand, int *op_flags, char **reg_table,
 		} else if ((modrm.mod == MODRM_MOD_NODISP) && 
 					  (modrm.rm == MODRM_RM_NOREG)) {
 			/* unsure about this one */
-			*op_flags |= OP_IND | OP_UNSIGNED;
+			*op_flags |= OP_REL | OP_UNSIGNED;
 			GetSizedOperand(operand, b + 1, size, OP_UNSIGNED);
 			count += size;
 			/* or is an SIB implied? goddamn intel... */
@@ -213,13 +292,13 @@ int InstDecode( instr *t, BYTE *buf, struct code *c, DWORD rva){
 	c->mnemType |= t->mnemFlg;
 
 	/*  ++++   2. Handle opcode prefixes */
-	addr_size = default_addr_mode;
+	addr_size = intel.addr_size;
 	if ( t->mnemFlg & PREFIX_ADDR_SIZE) {
 		if ( addr_size == 32 ) addr_size = 16; /* that's right, it's a toggle */
 		else addr_size = 32;
 	}
 	/* TODO : do something w/ addr size :) */
-	op_size = default_addr_mode;
+	op_size = intel.addr_size;
 	if ( t->mnemFlg & PREFIX_OP_SIZE) {
 		if ( op_size == 32 ) op_size = 16; /* this one too */
 		else op_size = 32;
@@ -369,13 +448,13 @@ int InstDecode( instr *t, BYTE *buf, struct code *c, DWORD rva){
 				break;
 			case ADDRMETH_J  :	/* Rel offset to add to IP [jmp] */
 				/* sprintf rel addr , set flag */
-				*dest_flg[x] |= OP_IND | OP_SIGNED;
+				*dest_flg[x] |= OP_REL | OP_SIGNED;
 				GetSizedOperand(dest_buf[x], buf + bytes, size, OP_SIGNED);
 				bytes += size;
 				break;
 			case ADDRMETH_O  :	/* No ModR/M;operand is word/dword offset */
 				/* sprintf rel addr , set flag */
-				*dest_flg[x] |= OP_IND | OP_SIGNED;
+				*dest_flg[x] |= OP_REL | OP_SIGNED;
 				GetSizedOperand(dest_buf[x], buf + bytes, size, OP_SIGNED);
 				bytes += size;
 				break;
@@ -439,6 +518,7 @@ int DisasmAddress( BYTE *buf, BYTE tbl, struct code *c, DWORD rva){
 		size += DisasmAddress(&buf[1], t[op].table, c, rva);
 	} else if ( ! t[op].mnemonic[0]  ) {
 		/* This is not a valid opcode */
+		size --;
 		strcpy(c->mnemonic, "invalid"); 
 	} else {
 		/* A valid opcode cas been found; disassemble it */
