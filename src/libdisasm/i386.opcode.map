@@ -135,10 +135,10 @@ instr tbl_Main[] = {
 { 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jge", 0, 0, 0},  /* 0x7D */
 { 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jle", 0, 0, 0},  /* 0x7E */
 { 0, INS_COND, ADDRMETH_J | OPTYPE_b | OP_X, ARG_NONE, ARG_NONE, cpu_80386, "jg", 0, 0, 0},  /* 0x7F */
-{2, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x80 */
-{3, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x81 */
-{4, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x82 */
-{5, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x83 */
+{2, 0, ADDRMETH_E | OPTYPE_b, ADDRMETH_I | OPTYPE_b, ARG_NONE,cpu_80386, 0, 0, 0, 0},  /* 0x80 */
+{3, 0, ADDRMETH_E | OPTYPE_v, ADDRMETH_I | OPTYPE_v, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x81 */
+{4, 0, ADDRMETH_E | OPTYPE_v, ADDRMETH_I | OPTYPE_b, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x82 */
+{5, 0,  ADDRMETH_E | OPTYPE_v, ADDRMETH_I | OPTYPE_b, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x83 */
 { 0, INS_FLAG, ADDRMETH_E | OPTYPE_b | OP_R, ADDRMETH_G | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "test", 0, 0, 0},  /* 0x84 */
 { 0, INS_FLAG, ADDRMETH_E | OPTYPE_v | OP_R, ADDRMETH_G | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "test", 0, 0, 0},  /* 0x85 */
 { 0, INS_MOVE, ADDRMETH_E | OPTYPE_b | OP_W, ADDRMETH_G | OPTYPE_b | OP_W, ARG_NONE, cpu_80386, "xchg", 0, 0, 0},  /* 0x86 */
@@ -199,14 +199,14 @@ instr tbl_Main[] = {
 { 0, INS_MOVE, OP_REG | OP_W, ADDRMETH_I | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "mov", 5 + REG_DWORD_OFFSET, 0, 0},  /* 0xBD */
 { 0, INS_MOVE, OP_REG | OP_W, ADDRMETH_I | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "mov", 6 + REG_DWORD_OFFSET, 0, 0},  /* 0xBE */
 { 0, INS_MOVE, OP_REG | OP_W, ADDRMETH_I | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "mov", 7 + REG_DWORD_OFFSET, 0, 0},  /* 0xBF */
-{6, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xC0 */
-{7, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xC1 */
+{6, 0,  ADDRMETH_E | OPTYPE_b, ADDRMETH_I | OPTYPE_b, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xC0 */
+{7, 0,  ADDRMETH_E | OPTYPE_v, ADDRMETH_I | OPTYPE_b, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xC1 */
 { 0, INS_RET|INS_BRANCH, ADDRMETH_I | OPTYPE_w | OP_R, ARG_NONE, ARG_NONE, cpu_80386, "ret", 0, 0, 0},  /* 0xC2 */
 { 0, INS_RET|INS_BRANCH, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "ret", 0, 0, 0},  /* 0xC3 */
 { 0, INS_PTR, ADDRMETH_G | OPTYPE_v | OP_W, ADDRMETH_M | OPTYPE_p | OP_R, ARG_NONE, cpu_80386, "les", 0, 0, 0},  /* 0xC4 */
 { 0, INS_PTR, ADDRMETH_G | OPTYPE_v | OP_W, ADDRMETH_M | OPTYPE_p | OP_R, ARG_NONE, cpu_80386, "lds", 0, 0, 0},  /* 0xC5 */
 { 0, INS_MOVE, ADDRMETH_E | OPTYPE_b | OP_W, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "mov", 0, 0, 0},  /* 0xC6 */
-{ 0, INS_MOVE, ADDRMETH_E | OPTYPE_v | OP_W, ADDRMETH_I | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "mov", 0, 0, 0},  /* 0xC7 */
+{ 0, INS_MOVE, ADDRMETH_E | OPTYPE_v | OP_W, ADDRMETH_I | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "mov", 0, 0, 0},  /* 0xC7  Intel LIES and calls this Ev, Iv*/
 { 0, INS_FRAME, ADDRMETH_I | OPTYPE_w | OP_R, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "enter", 0, 0, 0},  /* 0xC8 */
 {0, INS_FRAME, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "leave", 0, 0, 0},  /* 0xC9 */
 { 0, INS_RET|INS_BRANCH, ADDRMETH_I | OPTYPE_w | OP_R, ARG_NONE, ARG_NONE, cpu_80386, "retf", 0, 0, 0},  /* 0xCA */
@@ -215,10 +215,10 @@ instr tbl_Main[] = {
 { 0, INS_SYSTEM, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, ARG_NONE, cpu_80386, "int", 0, 0, 0},  /* 0xCD */
 {0, INS_SYSTEM, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "into", 0, 0, 0},  /* 0xCE */
 { 0, INS_BRANCH|INS_RET|INS_SYSTEM, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "iret", 0, 0, 0},  /* 0xCF */
-{8, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xD0 */
-{9, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xD1 */
-{10, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xD2 */
-{11, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xD3 */
+{8, 0,  ADDRMETH_E | OPTYPE_b, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 1, 0},  /* 0xD0 */
+{9, 0, ADDRMETH_E | OPTYPE_v, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 1, 0},  /* 0xD1 */
+{10, 0, ADDRMETH_E | OPTYPE_b, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, REG_BYTE_OFFSET + 1, 0},  /* 0xD2 */
+{11, 0, ADDRMETH_E | OPTYPE_v, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, REG_BYTE_OFFSET + 1, 0},  /* 0xD3 */
 { 0, INS_ARITH, ADDRMETH_I | OPTYPE_b | OP_W, ARG_NONE, ARG_NONE, cpu_80386, "aam", 0, 0, 0},  /* 0xD4 */
 { 0, INS_ARITH, ADDRMETH_I | OPTYPE_b | OP_W, ARG_NONE, ARG_NONE, cpu_80386, "aad", 0, 0, 0},  /* 0xD5 */
 {0, INS_FLAG, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "setalc", 0, 0, 0},  /* 0xD6 */
@@ -253,8 +253,8 @@ instr tbl_Main[] = {
 { 0, INSTR_PREFIX, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "rep:", 0, 0, 0},  /* 0xF3 */
 {0, INS_SYSTEM, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "hlt", 0, 0, 0},  /* 0xF4 */
 {0, INS_FLAG, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "cmc", 0, 0, 0},  /* 0xF5 */
-{12, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xF6 */
-{13, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xF7 */
+{12, 0,  ADDRMETH_E | OPTYPE_b, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xF6 */
+{13, 0, ADDRMETH_E | OPTYPE_v, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xF7 */
 {0, INS_FLAG, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "clc", 0, 0, 0},  /* 0xF8 */
 {0, INS_FLAG, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "stc", 0, 0, 0},  /* 0xF9 */
 {0, INS_FLAG|INS_SYSTEM, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "cli", 0, 0, 0},  /* 0xFA */

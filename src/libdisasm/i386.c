@@ -208,7 +208,7 @@ int GetSizedOperand( long *op, BYTE *buf, int size) {
    /* TODO: call bastard functions for endian-independence */
    switch (size) {
       case 1:                 /* BYTE */
-         *op = (signed char)buf[0];
+         *op = *((signed char *)&buf[0]);
          break;
       case 2:                 /* WORD */
          *op = *((signed short *)&buf[0]);
@@ -301,6 +301,8 @@ int DecodeModRM(BYTE *b, long *op, int *op_flags, int reg_type,
    int count=1;    /* # of bytes decoded -- start with 1 for the modR/M byte */
    int disp = 0;
    struct modRM_byte modrm;
+	unsigned char *disp_start;	
+
    
    DecodeByte(*b, &modrm);       /* get bitfields */
 
@@ -340,39 +342,41 @@ int DecodeModRM(BYTE *b, long *op, int *op_flags, int reg_type,
          *op_flags &= 0xFFFF0FFF;
          *op_flags |= OP_EXPR; /* flag operand as Address Expression */
       } else { 
+         if (modrm.rm == MODRM_RM_SIB) { /* rm == 100 */
+            /* IF base is an AddrExpr specified by an SIB byte */
+				disp_start = &b[2];
+            count += DecodeSIB(&b[1]);   
+         } else {
+            /* ELSE base is a general register */
+				disp_start = &b[1];
+            expr.base = modrm.rm; /* always a general_dword reg */
+            /* Flag AddrExpression as having a REGISTER for BASE */
+            expr.flags |= ADDREXP_REG << ADDEXP_BASE_OFFSET;
+         }
+				
          /* ELSE mod + r/m specify a disp##[base] or disp##(SIB) */
          if ( modrm.mod == MODRM_MOD_DISP8 ) { 
             /* If this is an 8-bit displacement */
-            expr.disp = (BYTE) b[1];
+            expr.disp = *disp_start; //(char) b[2];
             /* Flag AddrExpression as having a BYTE for DISP */
             expr.flags |= ADDREXP_BYTE << ADDEXP_DISP_OFFSET;
-            count += sizeof(BYTE);  /* add sizeof displacement to count */
+            count += sizeof(char);  /* add sizeof displacement to count */
          } else { 
             /* Displacement is dependent on operand size */
-            if (size == sizeof(WORD)) {
-               expr.disp = AS_USHORT(b[1]);
+            if (size == sizeof(short)) {
+               expr.disp = (*((unsigned short int*)disp_start));
                /* Flag AddrExpression as having a WORD for DISP */
                expr.flags |= ADDREXP_WORD << ADDEXP_DISP_OFFSET;
             } else {
-               expr.disp = AS_UINT(b[1]);
+               expr.disp = (*((unsigned int*)disp_start));
                /* Flag AddrExpression as having a DWORD for DISP */
                expr.flags |= ADDREXP_DWORD << ADDEXP_DISP_OFFSET;
             }
             count += size;  /* add sizeof displacement to count */
          }
-         if (modrm.rm == MODRM_RM_SIB) { /* rm == 100 */
-            /* IF base is an AddrExpr specified by an SIB byte */
-            count += DecodeSIB(&b[1]);   
-         } else {
-            /* ELSE base is a general register */
-            expr.base = modrm.rm; /* always a general_dword reg */
-            /* Flag AddrExpression as having a REGISTER for BASE */
-            expr.flags |= ADDREXP_REG << ADDEXP_BASE_OFFSET;
-         }
          *op_flags &= 0xFFFF0FFF;
          *op_flags |= OP_EXPR; /* flag operand as Address Expression */
       }
-      //if ( *op_flags &  OP_EXPR ) {
       if ( expr.flags ) {
          /* IF an address expression was created for this instruction */
          /* Set Operand to the ID of the AddrExpr */
@@ -666,6 +670,7 @@ int InstDecode( instr *t, BYTE *buf, struct code *c, DWORD rva){
             *dest_buf[x] = REG_FLAGS_INDEX;
             break;
          case ADDRMETH_I  :   /* Immediate val */
+            /* will this cause probs when doing dest=IMM, src=modR/M ? */
             *dest_flg[x] |= OP_IMM | OP_SIGNED  | op_size_flag;
             GetSizedOperand(dest_buf[x], buf + bytes, size);
             bytes += size;
@@ -678,7 +683,7 @@ int InstDecode( instr *t, BYTE *buf, struct code *c, DWORD rva){
          case ADDRMETH_O  :   /* No ModR/M;operand is word/dword offset */
             /* NOTE: these are actually RVA's and not offsets to IP!!! */
             *dest_flg[x] |= OP_OFF | OP_SIGNED | op_size_flag;
-            GetSizedOperand(dest_buf[x], buf + bytes, size);
+            GetSizedOperand(dest_buf[x], buf + bytes, addr_size);
             apply_seg(prefix, dest_flg[x]);
             bytes += size;
             break;
@@ -757,7 +762,7 @@ int disasm_addr( BYTE *buf, int tbl, struct code *c, long rva){
    
    t = tables86[tbl].table;   /* get table from Master Table Table */
    /* Make magic adjustments for skewed tables  */
-   if (tables86[tbl].divisor) {op /=  tables86[tbl].divisor; tbl--;};
+   if (tables86[tbl].divisor) {op /=  tables86[tbl].divisor; };
    if (tables86[tbl].mask) {
            /* opcode extension uses modR/M reg field: mask out rest of byte */
            /* This byte will be added to size by DecocdeModRM; therefore
