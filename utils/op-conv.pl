@@ -1,11 +1,136 @@
 #!/usr/bin/perl
+# Quickhack script for doing opcode table conversions
+# monkey with it as you like ...
+
+my %A1_X = (
+		call => "1",
+		callf => "1",
+		ja => "1",
+		jbe => "1",
+		jc => "1",
+		jcxz => "1",
+		jg => "1",
+		jge => "1",
+		jl => "1",
+		jle => "1",
+		jmp => "1",
+		jnc => "1",
+		jno => "1",
+		jns => "1",
+		jnz => "1",
+		jo => "1",
+		jpe => "1",
+		jpo => "1",
+		js => "1",
+		jz => "1",
+		loop => "1",
+		loopnz => "1",
+		loopz => "1"
+);
+my %A1_R = (
+		arpl => "INS_SYSTEM",
+		bound => "INS_ARRAY",
+		bsf => "INS_FLAG",
+		bsr => "INS_FLAG",
+		bt => "INS_FLAG",
+		btc => "INS_FLAG | INS_LOGIC",
+		btr => "INS_FLAG",
+		bts => "INS_FLAG",
+		cflsh => "NULL",
+		clc => "INS_FLAG",
+		cld => "INS_FLAG",
+		cli => "INS_FLAG | INS_SYSTEM",
+		clts => "INS_FLAG | INS_SYSTEM",
+		cmc => "INS_FLAG",
+		cmp => "INS_FLAG",
+		cmpeqps => "INS_FLAG",
+		cmpleps => "INS_FLAG",
+		cmpltps => "INS_FLAG",
+		cmpneqps => "INS_FLAG",
+		cmpnleps => "INS_FLAG",
+		cmpnltps => "INS_FLAG",
+		cmpordps => "INS_FLAG",
+		cmpsb => "INS_FLAG | INS_ARRAY",
+		cmpsd => "INS_FLAG | INS_ARRAY",
+		cmpunordps => "INS_FLAG",
+		cs => "NULL",
+		cvtpi2ps => "NULL",
+		cvtps2pi => "NULL",
+		cvttps2pi => "NULL",
+		div => 1,
+		ds => "NULL",
+		emms => "NULL",
+		enter => "INS_FRAME",
+		es => "NULL",
+		fs => "NULL",
+		gs => "NULL",
+		hlt => "INS_SYSTEM",
+		idiv => "INS_ARITH",
+		imul => "INS_ARITH",
+		inc => "INS_ARITH",
+		insb => "INS_MOVE | INS_SYSTEM | INS_ARRAY",
+		insd => "INS_MOVE | INS_SYSTEM | INS_ARRAY",
+		int => "INS_SYSTEM",
+		int3 => "INS_SYSTEM",
+		into => "INS_SYSTEM",
+		invd => "INS_SYSTEM",
+		invlpg => "INS_SYSTEM",
+		iret => "INS_BRANCH | INS_RET | INS_SYSTEM",
+		lahf => "INS_FLAGS",
+		leave => "INS_FRAME",
+		lock => "NULL",
+		lodsb => "INS_ARRAY",
+		lodsd => "INS_ARRAY",
+		mul => "INS_ARITH",
+		mulps => "NULL",
+		nop => "NULL",
+		push => "INS_STACK",
+		rep => "NULL",
+		repne => "NULL",
+		ret => "INS_RET | INS_BRANCH",
+		retf => "INS_RET | INS_BRANCH",
+		scasb => "INS_FLAG | INS_ARRAY",
+		scasd => "INS_FLAG | INS_ARRAY",
+		sgdt => "INS_SYSTEM",
+		sidt => "INS_SYSTEM",
+		sldt => "INS_SYSTEM",
+		stc => "INS_FLAG",
+		std => "INS_FLAG",
+		sti => "INS_FLAG | INS_SYSTEM",
+		stosb => "INS_ARRAY",
+		stosd => "INS_ARRAY",
+		test => "INS_FLAG",
+		verr => "INS_SYSTEM",
+		verw => "INS_SYSTEM",
+		xlat => "INS_ARRAY",
+);
+my %A2_W = (
+		cmpxch8b => "INS_FLAG | INS_MOVE",
+		cmpxchg => "INS_FLAG | INS_MOVE",
+		comiss => "NULL",
+		xadd => "INS_ARITH",
+		xchg => "INS_MOVE",
+);
 
 open(FILE, shift());
 foreach (<FILE>){
    if ( /^ *{/ ) {
       chomp;
+		#Flag|destType|srcType|auxType|cpuType|mnemType|mnem|dest|src|aux|cmt
 		($f, $a1, $a2, $a3, $p, $t, $m, $w, $x, $y, $z) = split /,/;
-		$t = get_inst_type($m);
+		#$t = get_inst_type($m);
+		$mnem = $m;
+		$mnem =~ s/[ ":]//g;
+		if ( $a1 !~ "ARG_NONE" ){
+			if ( exists($A1_X{$mnem}) ) { $a1 .= " | OP_X"; }
+			elsif ( $A1_R{$mnem} ) { $a1 .= " | OP_R"; }
+			else { $a1 .= " | OP_W";}
+		}
+		if ( $a2 !~ "ARG_NONE") { 
+			if ( $A2_W{$mnem} ) { $a2 .= " | OP_W"; }
+			else { $a2 .= " | OP_R"; }
+		}
+		if ( $a3 !~ "ARG_NONE") { $a3 .= " | OP_R"; }
 		print "$f, $a1, $a2, $a3, $p, $t, $m, $w, $x, $y, $z\n";
    } else {
      print;

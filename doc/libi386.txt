@@ -1,0 +1,191 @@
+Basic disasm engine -- based on the x86 ARCH extension for the bastard
+
+FILES
+-----
+bastard.h       : Dummy header file to replace libbastard.so
+extension.h     : Dummy header file to replace libbastard.so
+i386.c          : The core library code 
+i386.h          : Internal header file for the above
+i386.opcode.map : as it says; included in i386.h
+libdis.c        : Wrappers for the bastard extension routines in i386.c
+libdis.h        : The header file to use when linking to the .so
+op-conv.pl		 : Perl script for messing with opcode.map structure
+quikdis.c       : a quick & dirty tester for the library
+vm.h            : Dummy header file to replace libbastard.so
+
+
+
+
+COMPILATION
+-----------
+To compile the .so and the test disassembler:
+   make
+
+To compile the .so:
+   make libdis
+
+To compile the test disassembler:
+   make quikdis
+     ...or...
+   gcc -O3 -I. -L. -ldisasm quikdis.c -o quikdis
+
+To link to libdisasm:
+   #include "libdis.h"
+   gcc -ldisasm ....
+
+
+
+OPERATION
+---------
+The basic usage of the library is as follows:
+
+   1. Initialize disassembler
+   2. Disassemble stuff
+   3. Un-init the disassembler
+   
+This translates into C code like the following:
+
+   char buf[BUF_SIZE];      /* buffer of bytes to disassemble */
+   int pos = 0;             /* current position in buffer */
+   int size;                /* size of instruction */
+   struct instr i;          /* representation of the code instruction */
+
+   disassemble_init(0, INTEL_SYNTAX);
+   
+   while ( pos < BUF_SIZE ) {
+      size = disassemble_address(buf + pos, &i);
+      if (size) { 
+         /* ... do something with i */
+         pos += size;
+      } else {
+         /* invalid/unrecognized instruction */
+         pos++;
+      }
+   }
+
+   disassemble_cleanup();
+
+      
+The first argument to disassemble_init() represents disassembler options; for
+the x86 disassembler these are 
+
+   MODE_16_BIT       /* useless 16-bit mode */
+   IGNORE_NULLS      /* ignore sequences of > 4 NULLs */
+
+though passing '0' will suffice. The second argument specifies the assembler
+syntax; valid options are
+
+NATIVE_SYNTAX
+INTEL_SYNTAX
+ATT_SYNTAX
+
+with "native" syntax currently being the same as "intel".
+
+   struct instr {
+      char    mnemonic[16];      /* mnemonic for instruction */
+      char    dest[32];          /* string representation of operand 'dest' */
+      char    src[32];           /* string representation of operand 'src' */
+      char    aux[32];           /* string representation of operand 'aux' */
+      int     mnemType;          /* mnemonic type */
+      int     destType;          /* operand type for 'dest' */
+      int     srcType;           /* operand type for 'src' */
+      int     auxType;           /* operand type for 'aux' */
+      int     size;              /* size of instruction */
+   };
+
+The mnemonic and operand types are defined in bastard.h as follows:
+   /* Instruction Types: */
+   /*           Control Flow ( 'x' ) instructions */
+   INS_BRANCH      /* Unconditional branch */
+   INS_COND        /* Conditional branch */
+   INS_SUB         /* Jump to subroutine */
+   INS_RET         /* Return from subroutine */
+    /*          Modify ( 'w' ) instructions */
+   INS_ARITH       /* Arithmetic inst */
+   INS_LOGIC       /* logical inst */
+   INS_FPU         /* Floating Point inst */
+   INS_FLAG        /* Modify flags */
+    /*          Misc Instruction Types */
+   INS_MOVE     
+   INS_ARRAY       /* String and XLAT ops */
+   INS_PTR         /* Load EA/pointer */
+   INS_STACK       /* PUSH, POP, etc */
+   INS_FRAME       /* ENTER, LEAVE, etc */
+   INS_SYSTEM      /* CPUID, WBINVD, etc */
+   /*           Instruction modifiers */
+   INS_REPZ     
+   INS_REPNZ      
+   INS_LOCK        /* lock bus */
+   INS_DELAY       /* branch delay slot -- unused in x86 */
+
+   /* Operand Types */
+   /*           Permissions: */
+   OP_R            /* operand is READ */
+   OP_W            /* operand is WRITTEN */
+   OP_X            /* operand is EXECUTED */
+   /*           Types: */
+   OP_UNK          /* unknown operand */
+   OP_REG          /* register */
+   OP_IMM          /* immediate value */
+   OP_REL          /* relative Address [offset] */
+   OP_ADDR         /* Absolute Address */
+   OP_EXPR         /* Address Expression [e.g. SIB byte] */
+   OP_PTR          /* Operand is an Address containing a Pointer */
+   OP_OFF          /* Operand is an offset from a seg/selector */
+   /*           Modifiers: */
+   OP_SIGNED       /* operand is signed */
+   OP_STRING       /* operand a string */
+   OP_CONST        /* operand is a constant */
+   OP_EXTRASEG     /* seg override: ES */
+   OP_CODESEG      /* seg override: CS */
+   OP_STACKSEG     /* seg override: SS */
+   OP_DATASEG      /* seg override: DS */
+   OP_DATA1SEG     /* seg override: FS */
+   OP_DATA2SEG     /* seg override: GS */
+   /*           Size: */
+   OP_BYTE         /* operand is  8 bits/1 byte  */
+   OP_WORD         /* operand is 16 bits/2 bytes */
+   OP_DWORD        /* operand is 32 bits/4 bytes */
+   OP_QWORD        /* operand is 64 bits/8 bytes */
+
+The application can use this information to perform higher-level disassembly
+features such as cross references ( e.g. `if (i.destType & OP_X)` ), string
+or array references ( e.g. `if (i.mnemType & INS_ARRAY)` ), subroutine
+recognition, etc.
+
+If the additional information about the instruction is not needed, the 
+sprint_address() routine can be used in place of disassemble_address(). This
+routine takes as parameters a buffer to print to, the length of the buffer, and
+the address of the bytes to disassemble. The sample code provided above could
+therefore be replaced with:
+
+
+   char buf[BUF_SIZE];      /* buffer of bytes to disassemble */
+   char output[LINE_SIZE];  /* buffer for disassembler output */
+   int pos = 0;             /* current position in buffer */
+   int size;                /* size of instruction */
+
+   disassemble_init(0, INTEL_SYNTAX);
+   
+   while ( pos < BUF_SIZE ) {
+      size = sprint_address(output, LINE_SIZE, buf + pos);
+      if (size) { 
+         printf("%08X:   %s\n", pos, output);
+         pos += size;
+      } else {
+         printf("%08X:   Invalid Instruction %02X\n", pos, buf[pos]);
+         pos++;
+      }
+   }
+
+   disassemble_cleanup();
+
+
+
+That should do it. As usual, flames, fixes, and contributions welcome.
+
+
+
+BUGS
+----
+   FP, MMX, and other weird instructions are not yet supported.
