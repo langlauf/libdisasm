@@ -1,6 +1,17 @@
 #ifndef LIBDISASM_H
 #define LIBDISASM_H
 
+/* 'NEW" types
+ * __________________________________________________________________________*/
+#ifndef LIBDISASM_QWORD_H	/* do not interfere with qword.h */
+	#define LIBDISASM_QWORD_H
+	#ifdef _MSC_VER
+		typedef __int64		qword;
+	#else
+		typedef long long	qword;
+	#endif
+#endif
+
 /* 'NEW" x86 API 
  * __________________________________________________________________________*/
 
@@ -87,14 +98,15 @@ typedef struct {
 	char name[MAX_REGNAME];
 	int type;			/* what register is used for */
 	int size;			/* size of register in bytes */
+	int id;				/* register ID #, for quick compares */
 } x86_reg_t;
 
 typedef struct {
-	unsigned int scale;		/* scale factor */
-	x86_reg_t index, base;		/* index, base registers */
-	unsigned long disp;		/* displacement */
-	char disp_sign;			/* is negative? 1/0 */
-	char disp_size;			/* 0, 1, 2, 4 */
+	unsigned int     scale;		/* scale factor */
+	x86_reg_t        index, base;	/* index, base registers */
+	long             disp;		/* displacement */
+	char             disp_sign;	/* is negative? 1/0 */
+	char             disp_size;	/* 0, 1, 2, 4 */
 } x86_ea_t;
 
 enum x86_op_type {	/* mutually exclusive */
@@ -115,7 +127,7 @@ enum x86_op_datatype {		/* these use Intel's lame terminology */
 	op_qword = 4,		/* 8 byte integer */
 	op_dqword = 5,		/* 16 byte integer */
 	op_sreal = 6,		/* 4 byte real (single real) */
-	op_double = 7,		/* 8 byte real (double real) */
+	op_dreal = 7,		/* 8 byte real (double real) */
 	op_extreal = 8,		/* 10 byte real (extended real) */
 	op_bcd = 9,		/* 10 byte binary-coded decimal */
 	op_simd = 10,		/* 16 byte packed (SIMD, MMX) */
@@ -133,12 +145,12 @@ enum x86_op_flags {	/* ORed together, but segs are mutually exclusive */
 	op_string = 2,		/* possible string or array */
 	op_constant = 4,	/* symbolic constant */
 	op_pointer = 8,		/* operand points to a memory address */
-	op_es_seg = 0x10,	/* ES segment override */
-	op_cs_seg = 0x20,	/* CS segment override */
-	op_ss_seg = 0x30,	/* SS segment override */
-	op_ds_seg = 0x40,	/* DS segment override */
-	op_fs_seg = 0x50,	/* FS segment override */
-	op_gs_seg = 0x60	/* GS segment override */
+	op_es_seg = 0x100,	/* ES segment override */
+	op_cs_seg = 0x200,	/* CS segment override */
+	op_ss_seg = 0x300,	/* SS segment override */
+	op_ds_seg = 0x400,	/* DS segment override */
+	op_fs_seg = 0x500,	/* FS segment override */
+	op_gs_seg = 0x600	/* GS segment override */
 };
 	
 
@@ -155,7 +167,15 @@ typedef struct {
 		unsigned char 	byte;
 		unsigned short 	word;
 		unsigned long 	dword;
-		long long 	qword;
+		qword 		sqword;
+		float	        sreal;	
+		double	        dreal;	
+		/* misc large/non-native types */
+		unsigned char 	extreal[10];
+		unsigned char 	bcd[10];
+		qword		dqword[2];
+		unsigned char	simd[16];
+		unsigned char	fpuenv[28];
 		/* absolute address */
 		void 		* address;
 		/* offset from segment */
@@ -294,6 +314,25 @@ enum x86_insn_type {
 	insn_szconv = 0xF003	/* change size of operand */
 };
 
+enum x86_flag_status {
+	insn_carry_set = 0x1,
+	insn_zero_set = 0x2,
+	insn_oflow_set = 0x4,
+	insn_dir_set = 0x8,
+	insn_sign_set = 0x10,
+	insn_parity_set = 0x20,
+	insn_carry_or_zero_set = 0x40,
+	insn_zero_set_or_sign_ne_oflow = 0x80,
+	insn_carry_clear = 0x100,
+	insn_zero_clear = 0x200,
+	insn_oflow_clear = 0x400,
+	insn_dir_clear = 0x800,
+	insn_sign_clear = 0x1000,
+	insn_parity_clear = 0x2000,
+	insn_sign_eq_oflow = 0x4000,
+	insn_sign_ne_oflow = 0x8000
+};
+
 enum x86_insn_prefix {
 	insn_no_prefix = 0,
 	insn_rep_zero = 1,
@@ -313,6 +352,8 @@ typedef struct {
 	unsigned char bytes[MAX_INSN_SIZE];
 	unsigned char size;		/* size of insn in bytes */
 	enum x86_insn_prefix prefix;
+	enum x86_flag_status flags_set; /* flags set or tested by insn */
+	enum x86_flag_status flags_tested; 
 	/* the instruction proper */
 	char prefix_string[32];		/* prefixes [might be truncated] */
 	char mnemonic[8];
@@ -401,6 +442,15 @@ x86_op_t * x86_get_src_operand( x86_insn_t *insn );
 x86_op_t * x86_get_imm_operand( x86_insn_t *insn );
 /* get size of operand data in bytes */
 int x86_operand_size( x86_op_t *op );
+
+/* Get Raw Immediate Data: returns a pointer to the immediate data encoded
+ * in the instruction. This is useful for large data types [>32 bits] currently
+ * not supported by libdisasm, or for determining if the disassembler
+ * screwed up the conversion of the immediate data. Note that 'imm' in this
+ * context refers to immediate data encoded at the end of an instruction as
+ * detailed in the Intel Manual Vol II Chapter 2; it does not refer to the
+ * 'op_imm' operand (the third operand in instructions like 'mul' */
+unsigned char * x86_get_raw_imm( x86_insn_t *insn );
 
 void x86_set_insn_addr( x86_insn_t *insn, unsigned long addr );
 void x86_set_insn_offset( x86_insn_t *insn, unsigned int offset );

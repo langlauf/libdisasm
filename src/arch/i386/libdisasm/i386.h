@@ -4,6 +4,7 @@
 #include <bastard.h>
 #include <extension.h>
 #include <vm.h>
+#include "./qword.h"
 #ifndef _MSC_VER
 	#include <dirent.h>
 #endif
@@ -58,7 +59,7 @@ void ext_arch_init( void *param);
 void ext_arch_cleanup(void);
 int get_prologue(struct code **table);
 int get_epilogue(struct code **table);
-int disasm_addr( BYTE *buf, int tbl, struct code *c, long rva);
+int disasm_addr( BYTE *buf, int tbl, struct code *c, qword rva);
 int disasm_invariant( unsigned char *in, int in_len, 
 			    struct ARCH_INVARIANT *inv );
 

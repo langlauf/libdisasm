@@ -1,6 +1,6 @@
 LIBNAME	= libdisasm.so
 ARCHIVE	= libdisasm.a
-INCLUDE 	= -I.
+INCLUDE = -I.
 FLAGS 	= $(INCLUDE)  -O3 -ggdb
 LFLAGS 	= $(FLAGS) -fPIC -shared -Wl,-soname,$(LIBNAME)
 RM		= rm

@@ -1,4 +1,4 @@
-#include "i386.h"
+#include "./i386.h"
 
 /* Instruction structure -- used for reading opcode table */
 
@@ -8,9 +8,10 @@ typedef struct INSTR {
    int destFlg, srcFlg, auxFlg; /* ...and for specific operands */
    int cpu;                       /* minimumCPU [AND with clocks?? */
    char mnemonic[16];           /* buffers for building instruction */
-   long dest;//dest[32];
-   long src;//src[32];
-   long aux;//aux[32];
+   long dest;
+   long src;
+   long aux;
+   int flags_effected;
 } instr;
 
 #define MAX_INSTRUCTION_SIZE 20
@@ -178,16 +179,6 @@ struct SIB_byte {
 extern int sib_scl[];
 extern int sib_idx[];
 extern int sib_bas[];
-
-
-/* internal protos */
-int GetSizedOperand( unsigned long *op, BYTE *buf, int size);
-int DecodeByte(BYTE b, struct modRM_byte *modrm);
-int DecodeSIB(BYTE *b, int mod);
-int DecodeModRM(BYTE *b, long *op, int *op_flags, int reg_type,
-                      int size, int flags);
-int InstDecode( instr *t, BYTE *buf, struct code *c, DWORD rva);
-
 
 /* Convenience struct for opcode tables */
 typedef struct x86_table {             //Assembly instruction tables

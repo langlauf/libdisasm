@@ -2,6 +2,7 @@
 #define EXTENSION_H
 
 #include "bastard.h"
+#include "./qword.h"
 
 struct ARCH_INVARIANT {
 	unsigned char buf[64];
@@ -23,9 +24,9 @@ struct EXTENSION {
 }; /* these are linked to from standard extensions : hll, engine, etc */
 
 /* predef 's for use with dynamic loading */
-typedef int (*disaddr_fn)(unsigned char *, int, struct code *, long);
+typedef int (*disaddr_fn)(unsigned char *, int, struct code *, qword qword);
 typedef int (*disinv_fn)(unsigned char *, int, struct ARCH_INVARIANT *);
-typedef int (*pattern_fn)( unsigned long , int );
+typedef int (*pattern_fn)( qword , int );
 typedef int (*geneffect_fn)(struct code *, struct code_effect *);
 typedef int (*genint_fn)(struct function *);
 struct EXT__ARCH {   /* disassembler information */

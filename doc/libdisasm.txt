@@ -155,6 +155,8 @@ typedef struct {
 	unsigned char bytes[MAX_INSN_SIZE];	/* binary encoding of insn */
 	unsigned char size;			/* size of insn in bytes */
 	enum x86_insn_prefix prefix;
+	enum x86_flag_status flags_set; 	/* eflags toggled by insn */
+	enum x86_flag_status flags_tested; 	/* eflags tested by insn */
 	char prefix_string[32];			/* prefixes */
 	char mnemonic[8];			/* opcode */
 	x86_op_t operands[3];
@@ -288,6 +290,32 @@ enumeration types ORed together in the 'prefix' field, and as a string in the
 		insn_delay = 8
 	};
 
+The 'flags_set' and 'flags_tested' fields specify which bits in the eflags
+register are modified or examined by the instruction; this allows the
+application to determine which specific code address is responsible for the
+value of a flag when a test or a conditional jump is encountered. The flag
+status definitions are an enumeration which specifies if the flag is being
+set to or tested for 0 or 1:
+
+	enum x86_flag_status {
+		insn_carry_set,
+		insn_zero_set,
+		insn_oflow_set,
+		insn_dir_set,
+		insn_sign_set,
+		insn_parity_set,
+		insn_carry_or_zero_set,
+		insn_zero_set_or_sign_ne_oflow,
+		insn_carry_clear,
+		insn_zero_clear,
+		insn_oflow_clear,
+		insn_dir_clear,
+		insn_sign_clear,
+		insn_parity_clear,
+		insn_sign_eq_oflow,
+		insn_sign_ne_oflow
+	};
+
 The 'block', 'function', and 'tag' fields of x86_insn_t are provided for 
 application use -- the first two can be used to associate an instruction with 
 a program block or function, and the third can be used to mark whether an 
@@ -316,7 +344,13 @@ typedef struct {
 		unsigned char 	byte;		/* unsigned byte */
 		unsigned short 	word;		/*      ... word */
 		unsigned long 	dword;		/*      ... dword */
-		long long 	qword;		/*      ... qword */
+		qword		sqword;		/*      ... qword */
+		/* misc large/non-native types */
+		unsigned char   extreal[10];
+		unsigned char   bcd[10];
+		qword           dqword[2];
+		unsigned char   simd[16];
+		unsigned char   fpuenv[28];
 		/* addresses */
 		void 		* address;	/* absolute address */
 		unsigned long	offset;		/* offset from segment start */
@@ -365,12 +399,12 @@ Note that the size and signedness of the operand must be determined using the
 		op_string = 2,		/* possible string or array */
 		op_constant = 4,	/* symbolic constant */
 		op_pointer = 8,		/* operand points to a memory address */
-		op_es_seg = 0x10,	/* ES segment override */
-		op_cs_seg = 0x20,	/* CS segment override */
-		op_ss_seg = 0x30,	/* SS segment override */
-		op_ds_seg = 0x40,	/* DS segment override */
-		op_fs_seg = 0x50,	/* FS segment override */
-		op_gs_seg = 0x60	/* GS segment override */
+		op_es_seg = 0x100,	/* ES segment override */
+		op_cs_seg = 0x200,	/* CS segment override */
+		op_ss_seg = 0x300,	/* SS segment override */
+		op_ds_seg = 0x400,	/* DS segment override */
+		op_fs_seg = 0x500,	/* FS segment override */
+		op_gs_seg = 0x600	/* GS segment override */
 	};
 
 
@@ -392,6 +426,7 @@ typedef struct {
 	char name[MAX_REGNAME];
 	int type;			/* what register is used for */
 	int size;			/* size of register in bytes */
+	int id;				/* ID # of register */
 } x86_reg_t;
 
 The 'name' field contains the human-readable name of the register, such as
@@ -661,8 +696,6 @@ That should do it. As usual, flames, fixes, and contributions welcome.
 ================================================================================
  TODO
 
-	Add proper support for floating point, qword, and BCD data types
-
 	(Maybe) Add a proper resolver that is recursion-proof
 
 	(Maybe) Add register/stack tracking
@@ -674,7 +707,8 @@ That should do it. As usual, flames, fixes, and contributions welcome.
 	ver 0.20 : API was rewritten to provide more low-level access to
 	           instruction information. The original API has been
 		   retained, but programmers are encouraged to use the
-		   new API as it is much more powerful.
+		   new API as it is much more powerful. Operands are now
+		   stored internally as 64-bit data types.
 
 	ver 0.17 : semantics of disassemble_address() and sprint_address()
 	           changed to allow user to specify bounds of the buffer to

@@ -201,7 +201,7 @@ sub new_insn {
 	$line =~ s/\s//g;
 	$line =~ s/"//g;
 	($i{table}, $i{iflg}, $i{dflg}, $i{sflg}, $i{aflg}, $i{cpu}, $i{insn}, 
-	 $i{dest}, $i{src}, $i{aux}) = split ',', $line;
+	 $i{dest}, $i{src}, $i{aux}, $i{flags}) = split ',', $line;
 	return \%i;
 }
 
@@ -420,17 +420,19 @@ sub load_opcode_tables {
 				# we are no longer in the table of prefixes
 				$prefixtbl = "";
 			}
-		} elsif ( /^\s*\{([^}]+)\}/ ) {
+		} elsif ( /^\/\*[^*]+\*\/\s*\{\s*([^}]+)\s*\}/ ) {
 			if ( $intable ) {
 				# this must be an insn!
 				$i = new_insn( $1 );
 				push @{$tables{$intable}}, $i;
-			} elsif ( $tablelst ) {
+			}
+		} elsif ( /^\s*\{\s*([^}]+)\s*\}/ ) {
+			if ( $tablelst ) {
 				# this must be a table
 				push @table_list, new_table($1);
 			} elsif ( $prefixtbl ) {
 				# this is a prefix I guess
-				if ($1 =~ /^\s*(0x[0-9A-F]+), (PREFIX_[A-Z_]+)/){
+				if ($1 =~ /^\s*(0x[0-9A-F]+),(PREFIX_[A-Z_]+)/){
 					$prefixes{$1} = $2;
 				}
 			} # else ignore
@@ -1442,6 +1444,7 @@ sub disasm_table_lookup {
 		$$insn{type} .= "$$insn_def{iflg},";	# insn type
 		$$insn{type} .= "$$insn_def{cpu}";	# cpu req.
 		$$insn{type} =~ s/,cpu_[A-Za-z0-9]*//;
+		$$insn{flags} = $$insn_def{flags};	# flags effected
 
 		# fill insn operands
 		$$insn{dest} = $$insn_def{dest};	# destination
@@ -1450,6 +1453,7 @@ sub disasm_table_lookup {
 		$$insn{stype} = $$insn_def{sflg};
 		$$insn{aux} = $$insn_def{aux};		# third op (imm)
 		$$insn{atype} = $$insn_def{aflg};
+
 	}
 	return $size;
 
@@ -2180,7 +2184,7 @@ sub int_output {
 
 	# print instructions
 	print "#INSN|va|offset|size|hex|mnemonic|type|";
-	print "src|type|perm|dest|type|perm|aux|type|perm|name\n";
+	print "src|type|perm|dest|type|perm|aux|type|perm|flags|name\n";
 	foreach $ptr ( @{$target_info{insns}} ) {
 		$buf = "";
 		printf "INSN|0x%08X|0x%X|%d|",$$ptr{va},$$ptr{offset},
@@ -2191,7 +2195,13 @@ sub int_output {
 		print "$$ptr{src}|$$ptr{stype}|$$ptr{sprm}|";
 		print "$$ptr{dest}|$$ptr{dtype}|$$ptr{dprm}|";
 		print "$$ptr{aux}|$$ptr{atype}|$$ptr{aprm}|";
-		print "$$ptr{name}";
+		$buf = $$ptr{flags};
+		if ( $buf eq "0" ) {
+			$buf = "";
+		} else {
+			$buf =~ s/\|/,/g;
+		}
+		print "$buf|$$ptr{name}";
 		print "\n";
 	}
 

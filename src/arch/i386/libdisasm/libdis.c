@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "libdis.h"
-#include "i386.h"
+#include "./libdis.h"
+#include "./i386.h"
 
 #ifdef _MSC_VER
-	#define snprintf _snprintf
+	#define snprintf	_snprintf
+	#define inline		__inline
 #endif
 
 
@@ -47,10 +48,11 @@ void x86_report_error( enum x86_report_codes code, void *arg ) {
 /* =========================================================== UTILITY */
 
 
-static inline void get_reg( int id, x86_reg_t *reg ) {
+static __inline void get_reg( int id, x86_reg_t *reg ) {
 	strncpy(reg->name, vm_get_reg_name(id), MAX_REGNAME);
 	reg->type = vm_get_reg_type( id );
 	reg->size = vm_get_reg_size( id );
+	reg->id = id;
 }
 
 /* Each addrexp can only be used once; this call removes the addr_exp from
@@ -65,7 +67,7 @@ static int get_ea_from_addrexp(unsigned long id, x86_ea_t *ea ) {
 
 	if ( addrexp_get(id, &e) ) {
 		ea->disp_sign = ea->disp_size = 0;
-		ea->disp = (unsigned long) e.disp;
+		ea->disp = (long) e.disp;
 		ea->scale = e.scale ? e.scale : 1;
 		if ( AddrExp_IndexType(e.flags) ) {
 			get_reg(e.index, &ea->index);
@@ -96,9 +98,10 @@ static int get_ea_from_addrexp(unsigned long id, x86_ea_t *ea ) {
 	return(0);
 }
 
-static int insn_op_from_code( x86_op_t *op, unsigned long op_val, int op_type ){
+static int insn_op_from_code( x86_op_t *op, qword op_val, int op_type ){
 	x86_ea_t *ea;
 	x86_reg_t *reg;
+	int iop = (int) op_val;
 
 	if (! op ) { return(0); }
 
@@ -113,7 +116,7 @@ static int insn_op_from_code( x86_op_t *op, unsigned long op_val, int op_type ){
 		op->type = op_unknown;
 	}
 	op->flags = OP_MOD(op_type) >> 12;
-	op->datatype = OP_SIZE(op_type) >> 20;
+	op->datatype = OP_SIZE(op_type) >> 24;
 	if (! op->datatype ) {
 		op->datatype = op_dword;
 	}
@@ -122,50 +125,48 @@ static int insn_op_from_code( x86_op_t *op, unsigned long op_val, int op_type ){
 	switch ( OP_TYPE(op_type) ) {
 		case OP_REG:
 			/* op_val is reg ID */
-			get_reg( op_val, &op->data.reg );
+			get_reg( iop, &op->data.reg );
 			break;
 		case OP_IMM:
 			if ( OP_SIZE(op_type) == OP_BYTE ) {
 				if ( OP_MOD(op_type) & OP_SIGNED )
-					op->data.sbyte = (char)op_val;
+					op->data.sbyte = (char) iop;
 				else
-					op->data.byte = (unsigned char)op_val;
+					op->data.byte = (unsigned char) iop;
 			} else if (OP_SIZE(op_type) == OP_HWORD ) {
 				if ( OP_MOD(op_type) & OP_SIGNED )
-					op->data.sword = (short)op_val;
+					op->data.sword = (short) iop;
 				else
-					op->data.word = (unsigned short)op_val;
+					op->data.word = (unsigned short) iop;
 			} else if (OP_SIZE(op_type) == OP_DWORD ) {
-				/* yeah, this will always be truncated
-				 * until I switch to 64-bit data types
-				 * ... oh well ;P */
-				op->data.qword = (long long)op_val;
+				op->data.sqword = op_val;
 			} else  { /* WORD is default */
 				if ( OP_MOD(op_type) & OP_SIGNED )
-					op->data.sdword = (long)op_val;
+					op->data.sdword = (long) iop;
 				else
-					op->data.dword = op_val;
+					op->data.dword = (unsigned long) iop;
 			}
 			break;
 		case OP_REL:
 			/* op_val is a signed something */
 			if ( OP_SIZE(op_type) == OP_BYTE ) {
-				op->data.near_offset = (char) op_val;
+				op->data.near_offset = (char) iop;
 			} else {
-				op->data.far_offset = (long) op_val;
+				op->data.far_offset = (long) iop;
 			}
 			break;
 		case OP_ADDR:
 			/* op_val is an unsigned long */
-			op->data.address = (void *) op_val;
+			op->data.address = (void *) ((unsigned long) iop);
 			break;
 		case OP_EXPR:
 			/* op_val is expr ID */
-			get_ea_from_addrexp(op_val, &op->data.effective_addr);
+			get_ea_from_addrexp( (unsigned long) iop, 
+					     &op->data.effective_addr);
 			break;
 		case OP_OFF:
 			/* op_val is an unsigned long */
-			op->data.offset = op_val;
+			op->data.offset = (unsigned long) iop;
 			break;
 		default:
 			break;
@@ -183,17 +184,40 @@ static char *prefix_strings[] = {
 
 static int x86insn_from_code( x86_insn_t *insn, struct code *code ) {
 	char *ptr;
+	unsigned int flags;
 
 	if ( ! insn || ! code ) {
 		return(0);
 	}
 
-	insn->group = INS_GROUP(code->mnemType) >> 12;
-	insn->type = INS_TYPE(code->mnemType);
-	insn->prefix = INS_MOD(code->mnemType) >> 20;
+	insn->group = INS_GROUP(code->mnem_type) >> 12;
+	insn->type = INS_TYPE(code->mnem_type);
+	insn->prefix = INS_MOD(code->mnem_type) >> 20;
 	if ( (unsigned int) insn->prefix > 8 ) {
 		insn->prefix = insn_no_prefix;
 	}
+
+	/* handle flags effected */
+	flags = INS_FLAGS_TEST(code->flags_st);
+	/* handle weird OR cases */
+	/* these are either JLE (ZF | SF<>OF) or JBE (CF | ZF) */
+	if (flags & INS_TEST_OR) {
+		flags &= ~INS_TEST_OR;
+		if ( flags & INS_TEST_ZERO ) {
+			flags &= ~INS_TEST_ZERO;
+			if ( flags & INS_TEST_CARRY ) {
+				flags &= ~INS_TEST_CARRY ;
+				flags |= (int)insn_carry_or_zero_set;
+			} else if ( flags & INS_TEST_SFNEOF ) {
+				flags &= ~INS_TEST_SFNEOF; 
+				flags |= (int)insn_zero_set_or_sign_ne_oflow;
+			}
+		}
+	}
+	insn->flags_tested = flags;
+	
+	insn->flags_set = INS_FLAGS_SET(code->flags_st) >> 16;
+
 
 	/* concat all prefix strings */
 	if ( (int)insn->prefix & 1 ) {
@@ -211,11 +235,11 @@ static int x86insn_from_code( x86_insn_t *insn, struct code *code ) {
 	/* create mnemonic and operands */
 	strncpy(insn->mnemonic, code->mnemonic, 7);
 	insn_op_from_code( &insn->operands[(int)op_dest], code->dest,
-			   code->destType );
+			   code->dest_type );
 	insn_op_from_code( &insn->operands[(int)op_src], code->src,
-			   code->srcType );
+			   code->src_type );
 	insn_op_from_code( &insn->operands[(int)op_imm], code->aux,
-			   code->auxType );
+			   code->aux_type );
 
 	return(1);
 	
@@ -238,7 +262,7 @@ int x86_disasm( unsigned char *buf, unsigned int buf_len,
 
 	if ( offset >= buf_len ) {
 		/* another caller screwup ;) */
-		x86_report_error(report_disasm_bounds, (void*)buf_rva+offset);
+		x86_report_error(report_disasm_bounds, (char*)buf_rva+offset);
 		return(0);
 	}
 
@@ -252,13 +276,13 @@ int x86_disasm( unsigned char *buf, unsigned int buf_len,
 	
 	/* check and see if we had an invalid instruction */
 	if (! size ) {
-		x86_report_error(report_invalid_insn, (void*)buf_rva+offset );
+		x86_report_error(report_invalid_insn, (char*)buf_rva+offset );
 		return(0);
 	}
 
 	/* check if we overran the end of the buffer */
 	if ( size > len ) {
-		x86_report_error( report_insn_bounds, (void*)buf_rva + offset );
+		x86_report_error( report_insn_bounds, (char*)buf_rva + offset );
 		return(0);
 	}
 
@@ -539,16 +563,20 @@ int x86_format_operand( x86_op_t *op, x86_insn_t *insn, char *buf, int len,
 					sprintf(str, "%d", op->data.sbyte );
 				} else if ( op->datatype == op_word ) {
 					sprintf(str, "%d", op->data.sword );
+				} else if ( op->datatype == op_qword ) {
+					sprintf(str, "%lld", op->data.sqword );
 				} else {
-					sprintf(str, "%d", op->data.sdword );
+					sprintf(str, "%ld", op->data.sdword );
 				}
 			} else {
 				if ( op->datatype == op_byte ) {
 					sprintf(str, "0x%2X", op->data.byte );
 				} else if ( op->datatype == op_word ) {
 					sprintf(str, "0x%4X", op->data.word );
+				} else if ( op->datatype == op_qword ) {
+					sprintf(str,"0x%8llX", op->data.sqword);
 				} else {
-					sprintf(str, "0x%8X", op->data.dword );
+					sprintf(str, "0x%8lX", op->data.dword );
 				}
 			}
 			strncat( buf, str, len );
@@ -800,6 +828,29 @@ x86_op_t * x86_get_imm_operand( x86_insn_t *insn ) {
 	return( NULL );
 }
 
+unsigned char * x86_get_raw_imm( x86_insn_t *insn ) {
+	int size, offset;
+	x86_op_t *op;
+
+	if ( insn ) {
+		if ( insn->operands[0].type == op_immediate ) {
+			op = &insn->operands[0];
+		} else if ( insn->operands[1].type == op_immediate ) {
+			op = &insn->operands[1];
+		} else if ( insn->operands[2].type == op_immediate ) {
+			op = &insn->operands[2];
+		} else {
+			return( NULL );
+		}
+		/* immediate data is at the end of the insn */
+		size = x86_operand_size( op );
+		offset = insn->size - size;
+		return( &insn->bytes[offset] );
+	}
+	return(NULL);
+}
+
+
 int x86_operand_size( x86_op_t *op ) {
 	switch (op->datatype ) {
 		case op_byte: return 1;
@@ -808,7 +859,7 @@ int x86_operand_size( x86_op_t *op ) {
 		case op_qword: return 8;
 		case op_dqword: return 16;
 		case op_sreal: return 4;
-		case op_double: return 8;
+		case op_dreal: return 8;
 		case op_extreal: return 10;
 		case op_bcd: return 10;
 		case op_simd: return 16;
@@ -863,22 +914,22 @@ static enum x86_asm_format assembler_format = native_syntax;
  * libdisasm .16 and under. Obviously big fans of the library will want 
  * these to stick around, even though the API sucks like a jet intake */
 
-static void fix_op( long * op, unsigned int type ) {
+static void fix_op( qword * op, unsigned int type ) {
 	struct addr_exp *e;
 	struct EXPRLIST expl;
 
 	if ( OP_TYPE(type) == OP_REG ) {
-		*op = (long) vm_get_reg_name(*op);
+		*op = (qword) ((long) vm_get_reg_name((int)*op));
 	} else if ( OP_TYPE(type) == OP_EXPR ) {
 		e = calloc( sizeof(struct addr_exp), 1 );
-		addrexp_get(*op, &expl);
+		addrexp_get((int) *op, &expl);
 		e->scale = expl.scale;
 		e->index = expl.index;
 		e->base = expl.base;
 		e->disp = expl.disp;
 		e->flags = expl.flags;
 		e->used = expl.used;
-		*op = (long) e;
+		*op = (qword) ((long) e);
 	}
 	return;
 }
@@ -899,15 +950,15 @@ int x86old_disasm_addr_raw(char *buf, int buf_len, struct code *c){
 		return(0);
 	}
 
-	fix_op( &c->dest, c->destType );
-	fix_op( &c->src, c->srcType );
-	fix_op( &c->aux, c->auxType );
+	fix_op( &c->dest, c->dest_type );
+	fix_op( &c->src, c->src_type );
+	fix_op( &c->aux, c->aux_type );
 
 	return(size);
 }
 
 /* format an address expression */
-static int fmt_expr_op(int operand, int flags, char *buf, int len)
+static int fmt_expr_op(long operand, int flags, char *buf, int len)
 {
 	if (!operand && flags != ADDREXP_REG) {
 		buf[0] = '\0';
@@ -927,7 +978,7 @@ static int fmt_expr_op(int operand, int flags, char *buf, int len)
 		break;
 	case ADDREXP_DWORD:
 		if (operand)
-			snprintf(buf, len, "%08X", operand);
+			snprintf(buf, len, "%08lX", operand);
 		break;
 	case ADDREXP_QWORD:
 		if (operand)
@@ -965,7 +1016,7 @@ int x86_old_sprint_addexp(char *str, int len, struct addr_exp *e)
 	/* do byte */
 	fmt_expr_op(e->base, AddrExp_BaseType(e->flags), base, 32);
 	/* do disp */
-	fmt_expr_op(e->disp, AddrExp_DispType(e->flags), disp, 32);
+	fmt_expr_op((long)e->disp, AddrExp_DispType(e->flags), disp, 32);
 
 	str[0] = '\0';
 	
@@ -1037,9 +1088,9 @@ static int sprint_seg(char *str, int len, int seg)
 	return (strlen(str));
 }
 
-static int sprint_op(char *str, int len, int op, int type)
+static int sprint_op(char *str, int len, qword op, int type)
 {
-	int diff, seg;
+	int diff, seg, iop;
 	
 	if (!type) {
 		memset(str, 0, len);
@@ -1047,6 +1098,7 @@ static int sprint_op(char *str, int len, int op, int type)
 	}
 
 	seg = type & OP_SEG_MASK;	/* segment override for operand */
+	iop = (int) op;
 
 	switch (type & OP_TYPE_MASK) {
 		case OP_PTR:
@@ -1056,7 +1108,7 @@ static int sprint_op(char *str, int len, int op, int type)
 				str++;
 				len--;
 			}
-			snprintf(str, len, "0x%08X", op);
+			snprintf(str, len, "0x%08X", (long)iop);
 			break;
 		case OP_REG:
 			if (assembler_format == ATT_SYNTAX){
@@ -1068,7 +1120,7 @@ static int sprint_op(char *str, int len, int op, int type)
 				str += diff;
 				len -= diff;
 			}
-			snprintf(str, len, "%s", vm_get_reg_name(op));
+			snprintf(str, len, "%s", vm_get_reg_name(iop));
 			break;
 		case OP_EXPR:
 			if (assembler_format != ATT_SYNTAX && seg) {
@@ -1076,8 +1128,7 @@ static int sprint_op(char *str, int len, int op, int type)
 				str += diff;
 				len -= diff;
 			}
-			x86_old_sprint_addexp(str, len, 
-					(struct addr_exp *)op );
+			x86_old_sprint_addexp(str, len, (struct addr_exp *)iop);
 			break;
 		case OP_REL:
 			if (op < 0) {
@@ -1088,7 +1139,7 @@ static int sprint_op(char *str, int len, int op, int type)
 			}
 			str++;
 			len--;
-			snprintf(str, len, "0x%X", *(int *)&op);
+			snprintf(str, len, "0x%X", iop);
 			break;
 		case OP_OFF:
 			if (assembler_format != ATT_SYNTAX && seg) {
@@ -1096,7 +1147,7 @@ static int sprint_op(char *str, int len, int op, int type)
 				str += diff;
 				len -= diff;
 			}
-			snprintf(str, len, "0x%08X", op);
+			snprintf(str, len, "0x%08lX", (long)iop);
 			break;
 		case OP_IMM:
 		default:
@@ -1112,9 +1163,10 @@ static int sprint_op(char *str, int len, int op, int type)
 					str++;
 					op *= -1;
 				}
-				snprintf(str, len, "0x%X", *(long *)&op);
+				snprintf( str, len, "0x%lX", *(long *)&iop );
 			} else {
-				snprintf(str,len,"0x%X",*(unsigned long *)&op);
+				snprintf( str, len, "0x%lX",
+						*(unsigned long *)&iop );
 			}
 			break;
 	}
@@ -1133,17 +1185,17 @@ int x86_old_disasm_addr(char *buf, int buf_len, struct x86_old_instr *i) {
 
 	size = disasm_addr(disasm_buf, 0, &c, 0);
 	if ( size ) {
-		fix_op( &c.dest, c.destType );
-		fix_op( &c.src, c.srcType );
-		fix_op( &c.aux, c.auxType );
+		fix_op( &c.dest, c.dest_type );
+		fix_op( &c.src, c.src_type );
+		fix_op( &c.aux, c.aux_type );
 		strncpy(i->mnemonic, c.mnemonic, 16);
-		sprint_op(i->dest, 32, c.dest, c.destType);
-		sprint_op(i->src, 32, c.src, c.srcType);
-		sprint_op(i->aux, 32, c.aux, c.auxType);
-		i->mnemType = c.mnemType;
-		i->destType = c.destType;
-		i->srcType = c.srcType;
-		i->auxType = c.auxType;
+		sprint_op(i->dest, 32, c.dest, c.dest_type);
+		sprint_op(i->src, 32, c.src, c.src_type);
+		sprint_op(i->aux, 32, c.aux, c.aux_type);
+		i->mnemType = c.mnem_type;
+		i->destType = c.dest_type;
+		i->srcType = c.src_type;
+		i->auxType = c.aux_type;
 		i->size = size;
 	}
 	return (size);

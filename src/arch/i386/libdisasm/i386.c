@@ -1,16 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "i386.h"
-#include "i386_opcode.h"
-#include "i386.opcode.map"
-
-/* platform independent data types */
-#ifdef _MSC_VER
-	typedef __int64				qword;
-#else
-	typedef long long			qword;
-#endif
+#include "./qword.h"
+#include "./i386.h"
+#include "./i386_opcode.h"
+#include "./i386.opcode.map"
 
 struct addr_exp expr;		/* a very naughty global for storing the expression */
 struct EXT__ARCH *settings = {0};	/* might come in handy */
@@ -19,8 +13,7 @@ int mode_16 = 0;			/* 16 or 32-bit addressing? */
 
 /* sys_init routine : used to set internal disassembler values */
 static void regtable_init(void);
-void ext_arch_init(void *param)
-{
+void ext_arch_init(void *param) {
 	settings = (struct EXT__ARCH *) param;
 
 	if (!settings)
@@ -106,8 +99,7 @@ static void regtable_init(void) {
 	return;
 }
 
-void ext_arch_cleanup(void)
-{
+void ext_arch_cleanup(void) {
 	if (! settings )	return;
 	if (settings->reg_table)
 		free(settings->reg_table);
@@ -121,57 +113,54 @@ void ext_arch_cleanup(void)
 /* ------------ Disassembly Routines ----------------------------------- */
 /* Here There Be Awful Code ;P */
 
-static int op_get_signsized(long *op, BYTE * buf, int size)
-{
+static int op_get_signsized(qword *op, BYTE * buf, int size) {
 	/* Copy 'size' bytes from *buf to *op
 	 * return number of bytes copied */
 	/* TODO: call bastard functions for endian-independence */
 	switch (size) {
 	case 1:		/* BYTE */
-		*op = (long) *((char *) &buf[0]);
+		*op = (qword) *((char *) &buf[0]);
 		break;
 	case 2:		/* WORD */
-		*op = (long) *((signed short *) &buf[0]);
+		*op = (qword) *((signed short *) &buf[0]);
 		break;
 	case 6:
 	case 8:		/* QWORD */
-		*op = (long) *((qword *) &buf[0]);
+		*op = *((qword *) &buf[0]);
 		break;
 	case 4:		/* DWORD */
 	default:
-		*op = *((signed long *) &buf[0]);
+		*op = (qword) *((signed long *) &buf[0]);
 		break;
 	}
 	return (size);
 }
 
-static int op_get_sized(unsigned long *op, BYTE * buf, int size)
-{
+static int op_get_sized(qword *op, BYTE * buf, int size) {
 	/* Copy 'size' bytes from *buf to *op
 	 * return number of bytes copied */
 	/* TODO: call bastard functions for endian-independence */
 	switch (size) {
 	case 1:		/* BYTE */
-		*op = (unsigned long) *((unsigned char *) &buf[0]);
+		*op = (qword) *((unsigned char *) &buf[0]);
 		break;
 	case 2:		/* WORD */
-		*op = (unsigned long) *((unsigned short *) &buf[0]);
+		*op = (qword) *((unsigned short *) &buf[0]);
 		break;
 	case 6:
 	case 8:		/* QWORD */
-		*op = (unsigned long) *((qword *) &buf[0]);
+		*op = *((qword *) &buf[0]);
 		break;
 	case 4:		/* DWORD */
 	default:
-		*op = *((unsigned long *) &buf[0]);
+		*op = (qword) *((unsigned long *) &buf[0]);
 		break;
 	}
 	return (size);
 }
 
 
-int byte_decode(BYTE b, struct modRM_byte *modrm)
-{
+int byte_decode(BYTE b, struct modRM_byte *modrm) {
 	/* generic bitfield-packing routine */
 
 	modrm->mod = b >> 6;	/* top 2 bits */
@@ -182,8 +171,7 @@ int byte_decode(BYTE b, struct modRM_byte *modrm)
 }
 
 
-static int sib_decode(BYTE * b, int mod)
-{
+static int sib_decode(BYTE * b, int mod) {
 	/* set Address Expression fields (scale, index, base, disp) 
 	 * according to the contents of the SIB byte.
 	 *  b points to the SIB byte in the instruction-stream buffer; the
@@ -198,7 +186,7 @@ static int sib_decode(BYTE * b, int mod)
 	    /* IF BASE == EBP, deal with exception */
 		/* IF (ModR/M did not create a Disp */
 		/* ... create a 32-bit Displacement */
-		op_get_signsized((long*)&expr.disp, &b[1], sizeof(int));
+		op_get_signsized(&expr.disp, &b[1], sizeof(int));
 		/* Mark Addr Expression as having a DWORD for DISP */
 		expr.flags |= ADDREXP_DWORD << ADDEXP_DISP_OFFSET;
 		count += 4;
@@ -228,18 +216,18 @@ static int sib_decode(BYTE * b, int mod)
 /* handy wrapper for modrm 16 displacement */
 static int modrm_getop_16( struct addr_exp *expr, char *buf, int mod ) {
 	if ( mod == MOD16_MOD_DISP8 ) {
-		op_get_signsized((long*)&(expr->disp), buf, sizeof(char));
+		op_get_signsized(&expr->disp, buf, sizeof(char));
 		expr->flags |= ADDREXP_BYTE << ADDEXP_DISP_OFFSET;
 		return(sizeof(char));
 	} else if ( mod == MOD16_MOD_DISP16 ) {
-		op_get_signsized((long*)&(expr->disp), buf, sizeof(short));
+		op_get_signsized(&expr->disp, buf, sizeof(short));
 		expr->flags |= ADDREXP_WORD << ADDEXP_DISP_OFFSET;
 		return(sizeof(short));
 	} 
 	return(0);	/* do disp for this insn */
 }
 
-static int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
+static int modrm_decode16(BYTE * b, qword *op, int *op_flags, int reg_type,
 		int size, int flags, struct modRM_byte *modrm ) {
 	/* 16-bit mode: hackish, but not as hackish as 32-bit mode ;) */
 	int count = 1;		/* # of bytes decoded [1 for modR/M byte] */
@@ -251,7 +239,7 @@ static int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
 			*op = modrm->rm + reg_type;
 			return(1);
 		}
-		*op = modrm->reg + reg_type;
+		*op = (qword) modrm->reg + reg_type;
 		return( 0 ); /* this is the 'reg' field - don't count */
 	}
 
@@ -270,7 +258,8 @@ static int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
 			expr.flags |= ADDREXP_REG << ADDEXP_INDEX_OFFSET;
 			count += modrm_getop_16( &expr, &b[1], modrm->mod );
 		case MOD16_RM_BPSI:
-			if ( ! OP_SEG(*op_flags) ) 	*op_flags |= OP_STACKSEG;
+			if ( ! OP_SEG(*op_flags) ) 	
+				*op_flags |= OP_STACKSEG;
 			expr.base = REG_WORD_OFFSET + 5;
 			expr.flags |= ADDREXP_REG << ADDEXP_BASE_OFFSET;
 			expr.index = REG_WORD_OFFSET + 6;
@@ -278,7 +267,8 @@ static int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
 			count += modrm_getop_16( &expr, &b[1], modrm->mod );
 			break;
 		case MOD16_RM_BPDI:
-			if ( ! OP_SEG(*op_flags) ) 	*op_flags |= OP_STACKSEG;
+			if ( ! OP_SEG(*op_flags) ) 	
+				*op_flags |= OP_STACKSEG;
 			expr.base = REG_WORD_OFFSET + 5;
 			expr.flags |= ADDREXP_REG << ADDEXP_BASE_OFFSET;
 			expr.index = REG_WORD_OFFSET + 7;
@@ -297,12 +287,15 @@ static int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
 			break;
 		case MOD16_RM_BP:
 			if ( modrm->mod == MOD16_MOD_NODISP ) {
-				count += modrm_getop_16(&expr, &b[1], MOD16_MOD_DISP16);
+				count += modrm_getop_16(&expr, &b[1], 
+						MOD16_MOD_DISP16);
 			} else {
-				if ( ! OP_SEG(*op_flags) ) 	*op_flags |= OP_STACKSEG;
+				if ( ! OP_SEG(*op_flags) ) 	
+					*op_flags |= OP_STACKSEG;
 				expr.base = REG_WORD_OFFSET + 5;
 				expr.flags |= ADDREXP_REG << ADDEXP_BASE_OFFSET;
-				count += modrm_getop_16( &expr, &b[1], modrm->mod );
+				count += modrm_getop_16( &expr, &b[1], 
+						         modrm->mod );
 			}
 			break;
 		case MOD16_RM_BX:
@@ -311,11 +304,11 @@ static int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
 			count += modrm_getop_16( &expr, &b[1], modrm->mod );
 			break;
 	}
-	*op_flags |= OP_EXPR;
+	*op_flags |= OP_EXPR | OP_PTR;
 
 	if (expr.flags) {
-		*op = addrexp_new(expr.scale, expr.index, expr.base, expr.disp, 
-					expr.flags);
+		*op = (qword) addrexp_new(expr.scale, expr.index, expr.base, 
+						expr.disp, expr.flags);
 	}
 
 	return(count);
@@ -327,7 +320,7 @@ static int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
     Don't forget to flag string (*SB, *SW) instructions
 */
 /* returns number of bytes it decoded */
-static int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
+static int modrm_decode(BYTE * b, qword *op, int *op_flags, int reg_type,
 		int size, int flags) {
 	/* create address expression and/or fill operand based on value of
 	 * ModR/M byte. Calls sib_decode as appropriate.
@@ -336,7 +329,7 @@ static int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
 	 *    op_flags points to the operand flags buffer
 	 *    reg_type encodes the type of register used in this instruction
 	 *    size specifies the default operand size for this instruction
-	 *    flags specifies whether the Reg or mod+R/M fields are being decoded
+	 *    flags specifies whether Reg or mod+R/M fields are being decoded
 	 *  returns the number of bytes in the instruction, including modR/M */
 	struct modRM_byte modrm;
 	unsigned char *disp_start;
@@ -353,12 +346,13 @@ static int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
 
 	if (flags != MODRM_EA || modrm.mod == MODRM_MOD_NOEA) {
 		/* set operand to register ID */
-		*op = modrm.reg + reg_type;
+		*op = (qword) modrm.reg + reg_type;
 		*op_flags &= 0xFFFFF0FF;
 		*op_flags |= OP_REG;
+		/* IF this is mod 11b, increase insn size by 1 for modrm byte */
 		if ( flags != MODRM_reg && modrm.mod == MODRM_MOD_NOEA )
 			return(1);
-		/* ELSE this is the 'reg' field : assign a register */
+		/* ELSE the 'reg' field is used by a second operand */
 		return( 0 ); 
 	}
 
@@ -367,13 +361,13 @@ static int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
 		if (modrm.rm == MODRM_RM_NOREG) {	/* if r/m == 101 */
 			/* IF RM == No Register, just Displacement */
 			/* This is an Intel Moronic Exception TM */
-			op_get_signsized((long*)&expr.disp, &b[1], sizeof(int));
+			op_get_signsized(&expr.disp, &b[1], sizeof(int));
 			/* flag Addr Expr as having DWORD for DISP */
 			expr.flags |= ADDREXP_DWORD << ADDEXP_DISP_OFFSET;
 			count += 4;	/* add sizeof disp to count */
 		} else if (modrm.rm == MODRM_RM_SIB) {	/* if r/m == 100 */
 			/* ELSE IF an SIB byte is present */
-			count += sib_decode(&b[1], modrm.mod);	/* add sizeof SIB */
+			count += sib_decode(&b[1], modrm.mod);	/* sizeof SIB */
 		} else {	/* modR/M specifies base register */
 			/* ELSE RM encodes a general register */
 			expr.base = modrm.rm;
@@ -381,8 +375,8 @@ static int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
 			expr.flags |= ADDREXP_REG << ADDEXP_BASE_OFFSET;
 		}
 		*op_flags &= 0xFFFFF0FF;
-		*op_flags |= OP_EXPR;	/* flag operand as Address Expr */
-	} else { 						/* mod is 01 or 10 */
+		*op_flags |= OP_EXPR | OP_PTR;
+	} else { 					/* mod is 01 or 10 */
 		if (modrm.rm == MODRM_RM_SIB) {	/* rm == 100 */
 			/* IF base is an AddrExpr specified by an SIB byte */
 			disp_start = &b[2];
@@ -399,35 +393,37 @@ static int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
 		if (modrm.mod == MODRM_MOD_DISP8) {		/* mod == 01 */
 			/* If this is an 8-bit displacement */
 			/* uh, this needs to be sign-extended */
-			op_get_signsized((long*)&expr.disp, disp_start, sizeof(char));
+			op_get_signsized(&expr.disp, disp_start, 
+					  sizeof(char));
 			/* Flag AddrExpression as having a BYTE for DISP */
 			expr.flags |= ADDREXP_BYTE << ADDEXP_DISP_OFFSET;
 			count += 1;	/* add sizeof disp to count */
 		} else {
 			/* Displacement is dependent on address size */
-			op_get_signsized((long*)&expr.disp, disp_start, sizeof(int));
+			op_get_signsized(&expr.disp, disp_start, 
+					 sizeof(int));
 			/* Flag AddrExpression as having DWORD for DISP */
 			expr.flags |= ADDREXP_DWORD << ADDEXP_DISP_OFFSET;
 			count += 4;
 		}
 		*op_flags &= 0xFFFFF0FF;
-		*op_flags |= OP_EXPR;	/* flag operand as Address Expr */
+		*op_flags |= OP_EXPR | OP_PTR;	
 	}
 	if (expr.flags) {
 		/* IF address expression was created for this instruction */
 		/* Set Operand to the ID of the AddrExpr */
-		*op = addrexp_new(expr.scale, expr.index, expr.base, expr.disp, 
-					expr.flags);
+		*op = (qword) addrexp_new(expr.scale, expr.index, expr.base, 
+				expr.disp, expr.flags);
 	}
 	return (count);		/* number of bytes found in instruction */
 }
 
 
-static void apply_seg(unsigned int prefix, unsigned int *dest_flg, 
-			unsigned long *dest, struct addr_exp *expr)
-{
+static void apply_seg(unsigned int prefix, unsigned int *dest_flg, qword *dest,
+			struct addr_exp *expr) {
 	unsigned int seg = prefix & 0xF0000000;
-	unsigned int type, reg = 0;
+	unsigned int type;
+	qword reg = 0;
 
 	if (!seg) return;
 
@@ -553,11 +549,9 @@ static unsigned int get_opcode_size_flag(int op_type, int op_size,
 			break;
 		}
 	return( op_size_flag );
-
 }
 
-static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
-{
+static int instr_decode(instr * t, BYTE * buf, struct code *c, qword rva) {
 	/* Decode the operands of an instruction; calls modrm_decode as
 	 * necessary, gets displacemnets and immeidate values, and sets the
 	 * values of operand and operand flag fields in the code struct.
@@ -584,8 +578,9 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 	unsigned int operands[3] = { t->dest, t->src, t->aux };
 	unsigned int op_flags[3] = { t->destFlg, t->srcFlg, t->auxFlg };
 	/* destination buffers in the CODE struct */
-	unsigned long *dest_buf[3] = { &c->dest, &c->src, &c->aux };
-	unsigned int *dest_flg[3] = { &c->destType, &c->srcType, &c->auxType };
+	qword *dest_buf[3] = { 	(qword *) &c->dest, 
+				(qword *) &c->src, (qword *) &c->aux };
+	unsigned int *dest_flg[3] = {&c->dest_type, &c->src_type, &c->aux_type};
 
 
 	/* clear global ADDRESS EXPRESSION struct */
@@ -600,12 +595,13 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 	if (t->mnemonic)
 		/* IF the insn has a mnemonic, cat it to the mnemonic field */
 		strncat(c->mnemonic, t->mnemonic, 15);
-	c->mnemType |= t->mnemFlg;	/* save INS_TYPE flags */
+	c->mnem_type |= t->mnemFlg;	/* save INS_TYPE flags */
+	c->flags_st = t->flags_effected;
 
 
 	/*  ++++   2. Handle opcode prefixes */
-	prefix = c->mnemType & 0xFFF00000;	/* store prefix flag in temp var */
-	c->mnemType &= 0x000FFFFF;	/* clear prefix flags */
+	prefix = c->mnem_type & 0xFFF00000;	/* store prefix in tmp var */
+	c->mnem_type &= 0x000FFFFF;	/* clear prefix flags */
 	addr_size = settings->sz_addr;	/* set Addr Size to Default */
 	if (prefix & PREFIX_ADDR_SIZE) {
 		/* IF Address Size Override Prefix is set */
@@ -629,11 +625,11 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 
 	/* these prepend the relevant string to the mnem */
 	if (prefix & PREFIX_LOCK)
-		c->mnemType |= INS_LOCK;
+		c->mnem_type |= INS_LOCK;
 	if (prefix & PREFIX_REPNZ)
-		c->mnemType |= INS_REPNZ;
+		c->mnem_type |= INS_REPNZ;
 	if (prefix & PREFIX_REP || prefix & PREFIX_REPZ)
-		c->mnemType |= INS_REPZ;
+		c->mnem_type |= INS_REPZ;
 	/* this is ignored :P */
 	if (prefix & PREFIX_SIMD) ;
 
@@ -692,13 +688,14 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 		 *   dest_buf[x] points to a buffer for the value of current op
 		 *   bytes is a running total of the instruction size 
 		 * Goddamn-Intel-Note:
-		 *   Some Intel addressing methods [M, R] specify that the modR/M
-		 *   byte may only refer to a memory address or may only refer to
+		 *   Some Intel addressing methods [M, R] specify that modR/M
+		 *   byte may only refer to a memory address/may only refer to
 		 *   a register -- however Intel provides no clues on what to do
 		 *   if, say, the modR/M for an M opcode decods to a register
 		 *   rather than a memory address ... retuning 0 is out of the
 		 *   question, as this would be an Immediate or a RelOffset, so
-		 *   instead these modR/Ms are decoded according to opcode table.*/
+		 *   instead these modR/Ms are decoded according to opcode 
+		 *   table.*/
 
 		case ADDRMETH_E:	/* ModR/M present, Gen reg or memory  */
 			bytes +=
@@ -786,10 +783,11 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 			*dest_buf[x] = REG_FLAGS_INDEX;
 			break;
 		case ADDRMETH_I:	/* Immediate val */
-			/* will this cause probs when doing dest=IMM, src=modR/M ? */
+			/* will this cause probs when doing dest=IMM, 
+			 * src=modR/M ? */
 			*dest_flg[x] |= OP_IMM | op_size_flag;
 			if ( *dest_flg[x] & OP_SIGNED ) {
-				op_get_signsized(dest_buf[x], buf + bytes, size);
+				op_get_signsized(dest_buf[x], buf+bytes, size);
 			} else {
 				op_get_sized(dest_buf[x], buf + bytes, size);
 			}
@@ -811,13 +809,13 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 			apply_seg(prefix, dest_flg[x], dest_buf[x], &expr);
 			bytes += addr_size;
 			break;
-		case ADDRMETH_X:	/* Memory addressed by DS:SI [string!] */
+		case ADDRMETH_X:	/* Memory addressed by DS:SI [string] */
 			*dest_flg[x] |= OP_STRING | OP_REG | op_size_flag;
 			/* Set Operand to ID for register ESI */
 			*dest_buf[x] = 6 + REG_DWORD_OFFSET;
 			apply_seg(PREFIX_DS, dest_flg[x], dest_buf[x], &expr);
 			break;
-		case ADDRMETH_Y:	/* Memory addressed by ES:DI [string ] */
+		case ADDRMETH_Y:	/* Memory addressed by ES:DI [string] */
 			*dest_flg[x] |= OP_STRING | OP_REG | op_size_flag;
 			/* Set Operand to ID for register EDI */
 			*dest_buf[x] = 7 + REG_DWORD_OFFSET;
@@ -838,13 +836,9 @@ static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 }
 
 
-/* TODO : wrap all bastard-specific calls in IFs so this can be used 
- *        outside of the bastard disassembler ?? */
-
 /* this function is called by the controlling disassembler, so its name and
  * calling convention cannot be changed */
-int disasm_addr(BYTE * buf, int tbl, struct code *c, long rva)
-{
+int disasm_addr(BYTE * buf, int tbl, struct code *c, qword rva) {
 	/* This instruction looks up index buf[0] in table tbl 
 	 * (tables are in i386.opcode.map). Note that some tables require
 	 * the index be masked or div'ed in order to convert a high-number
@@ -860,9 +854,9 @@ int disasm_addr(BYTE * buf, int tbl, struct code *c, long rva)
 	 *        for the purpose of disassembly; a mmapped file is ideal for 
 	 *        this.
 	 *    tbl indicates which table to lookup this opcode in; 0 is the main
-	 *        opcode table and is the only table that should be referenced by
-	 *        a non-recursive call.
-	 *    c   points to a code structure which will be filled by instr_decode
+	 *        opcode table and is the only table that should be referenced 
+	 *        by a non-recursive call.
+	 *    c   points to a code structure to be filled by instr_decode
 	 *    rva is the virtual address of the current instruction
 	 *    returns the size of the decoded instruction in bytes */
 	BYTE op = buf[0];	/* byte value -- 'opcode' */
@@ -880,7 +874,7 @@ int disasm_addr(BYTE * buf, int tbl, struct code *c, long rva)
 		return (0);	/* 4 00 bytes in a row? This isn't code! */
 
 	if ((tables86[tbl].maxlim < 0xff) && op > tables86[tbl].maxlim) {
-		/* this is one of the fucking FPU tables out of the 00-BH range */
+		/* one of the fucking FPU tables out of the 00-BH range */
 		/* did I mention how much I hate Intel? Fucking wankers... */
 		tbl++;
 	}
@@ -911,25 +905,26 @@ int disasm_addr(BYTE * buf, int tbl, struct code *c, long rva)
 		for (x = 0; prefix_table[x][0] != 0; x++) {
 
 			/* cheat by storing flag for prefix in the CODE struct.
-			 * this enables it to be passed to instr decode w/o using
-			 * any global vars or ruining the recursion of this function */
+			 * this enables it to be passed to instr_decode w/o 
+			 * using any global vars or ruining the recursion of 
+			 * this function */
 			if (prefix_table[x][0] == op) {
 				/* strip multiple seg override prefixes */
-				if ((c->mnemType & PREFIX_REG_MASK) &&
+				if ((c->mnem_type & PREFIX_REG_MASK) &&
 				    (prefix_table[x][1] & PREFIX_REG_MASK))
-					c->mnemType &= 0x0FFFFFFF;
-				c->mnemType |= prefix_table[x][1];
+					c->mnem_type &= 0x0FFFFFFF;
+				c->mnem_type |= prefix_table[x][1];
 			}
 		}
 		if (t[op].mnemonic[0])
 			/* some prefixs have no mnemonics */
-			/* IF prefix has a mnemonic, cat it to the instruction */
+			/* IF prefix has a mnemonic, cat it to the insn */
 			strncat(c->mnemonic, t[op].mnemonic, 15);
-		/* Recurse, Setting Opcode to next byte in instruction stream  */
+		/* Recurse, set Opcode to next byte in instruction stream  */
 		x = disasm_addr(&buf[1], tbl, c, rva);
 	} else if (t[op].table && !t[op].mnemonic[0]) {
 		/* ELSE if this opcode is an escape to another opcode table */
-		/* Recurse into new table, Setting Opcode to next byte in stream  */
+		/* Recurse into new table, set Opcode to next byte in stream  */
 		x = disasm_addr(&buf[1], t[op].table, c, rva);
 
 	} else if (!t[op].mnemonic[0]) {
