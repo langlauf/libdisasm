@@ -34,7 +34,7 @@ int fmt_expr_op( int operand, int flags, char *buf, int len){
             strncpy(buf, get_reg_name(operand), len);
          break;
       case ADDREXP_WORD:
-         if (operand) snprintf(buf, len, "%4X", operand);
+         if (operand) snprintf(buf, len, "%4X", (short) operand);
          break;
       case ADDREXP_DWORD:
          if (operand) snprintf(buf, len, "%8X", operand);
@@ -44,7 +44,7 @@ int fmt_expr_op( int operand, int flags, char *buf, int len){
          break;
       case ADDREXP_BYTE:
       default:
-         if (operand) snprintf(buf, len, "%02X", operand);
+         if (operand) snprintf(buf, len, "%02X", (char) operand);
    }
 
    return(strlen(buf));
@@ -216,7 +216,7 @@ int AddRegTableEntry( int index, char *name, int size){
    return(1);
 }
 
-int DefineAddrExp(int scale,int index,int base,int disp,int flags){
+int addrexp_new(int scale,int index,int base,int disp,int flags){
    int id;
    if (!exp[0].used) 
       id = 0;
@@ -234,4 +234,13 @@ int DefineAddrExp(int scale,int index,int base,int disp,int flags){
    return(id);
 }
 
+
+int db_index_find(int a, void *b, void *c){
+	printf("you shouldn't be using this outside of the bastard!!!\n");
+	return(0);
+}
+int db_index_next(int a, void  *b){
+	printf("you shouldn't be using this outside of the bastard!!!\n");
+	return(0);
+}
 

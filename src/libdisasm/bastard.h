@@ -11,6 +11,8 @@ struct addr_exp {
 };
 
 struct code { 
+    long rva;
+    long func; /* unused in libdisasm */
     char    mnemonic[16];
     long    dest;
     long    src;
@@ -120,11 +122,18 @@ struct code_effect {  /* size 16 */
 
 
 
+#define CODE_RVA 1
+#define FUNCTION_PROLOGUE 1
+#define FUNCTION_EPILOGUE 2
+
 /* these are originally defined in bastard.h and libbastard; they are
  * provided here as a necessity for compatibility purposes, but are defined
  * lib libdisasm.c
  */
 
+
 #endif
 int AddRegTableEntry( int index, char *name, int size);
-int DefineAddrExp(int scale,int index,int base,int disp,int flags);
+int addrexp_new(int scale,int index,int base,int disp,int flags);
+int db_index_find(int, void *, void *);
+int db_index_next(int, void *);

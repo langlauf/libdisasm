@@ -39,7 +39,7 @@ OPERATION
 ---------
 The basic usage of the library is as follows:
 
-   1. Initialize disassembler
+   1. sys_initialize disassembler
    2. Disassemble stuff
    3. Un-init the disassembler
    
