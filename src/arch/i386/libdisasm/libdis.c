@@ -1,8 +1,8 @@
 #include <libdis.h>
 
-struct addr_exp exp[3];		/* one for dest, src, and aux in struct code */
-int assembler_format;
-struct EXT__ARCH ext_arch;
+struct addr_exp exp;		/* one for dest, src, and aux in struct code */
+int assembler_format = NATIVE_SYNTAX;
+struct EXT__ARCH ext_arch = {0};
 
 int disassemble_init(int options, int format)
 {
@@ -194,7 +194,7 @@ int sprint_op(char *str, int len, int op, int type)
 				str += diff;
 				len -= diff;
 			}
-			sprint_addrexp(str, len, &exp[op]);
+			sprint_addrexp(str, len, &exp);
 			break;
 		case OP_REL:
 			if (op < 0) {
@@ -231,7 +231,7 @@ int sprint_op(char *str, int len, int op, int type)
 				}
 				snprintf(str, len, "0x%X", *(long *)&op);
 			} else {
-				snprintf(str, len, "0x%X", *(unsigned long *)&op);
+				snprintf(str,len,"0x%X",*(unsigned long *)&op);
 			}
 			break;
 	}
@@ -244,8 +244,8 @@ int disassemble_address(char *buf, int buf_len, struct instr *i)
 	struct code c = { 0 };
 	unsigned char disasm_buf[32] = {0};
 
-	/* clear all 3 addr_exp's */
-	memset(exp, 0, sizeof (struct addr_exp) * 3);
+	/* clear addr_exp */
+	memset(&exp, 0, sizeof (struct addr_exp));
 	memset(i, 0, sizeof (struct instr));
 
 	/* copy binary code to temporary buffer */
@@ -259,7 +259,7 @@ int disassemble_address(char *buf, int buf_len, struct instr *i)
 	if ( size > buf_len ) {
 		return(0);
 	}
-	/* copy the bastard 'native' code struct to a more general instr struct */
+	/* copy bastard 'native' code struct to a more general instr struct */
 	strncpy(i->mnemonic, c.mnemonic, 16);
 	sprint_op(i->dest, 32, c.dest, c.destType);
 	sprint_op(i->src, 32, c.src, c.srcType);
@@ -270,6 +270,44 @@ int disassemble_address(char *buf, int buf_len, struct instr *i)
 	i->auxType = c.auxType;
 	i->size = size;
 	return (size);
+}
+
+static void fix_op( long * op, unsigned int type ) {
+	struct addr_exp *e;
+	if ( OP_TYPE(type) == OP_REG ) {
+		*op = (long) get_reg_name(*op);
+	} else if ( OP_TYPE(type) == OP_EXPR ) {
+		e = calloc( sizeof(struct addr_exp), 1 );
+		memcpy( e, &exp, sizeof(struct addr_exp) );
+		*op = (long) e;
+	}
+	return;
+}
+
+int disassemble_address_raw(char *buf, int buf_len, struct code *c){
+	int size;
+	unsigned char disasm_buf[32] = {0};
+
+	/* clear addr_exp */
+	memset(&exp, 0, sizeof (struct addr_exp));
+
+	/* copy binary code to temporary buffer */
+	memcpy( disasm_buf, buf, ( buf_len > cpu_inst_size() ) ? 
+			               cpu_inst_size() : buf_len     );
+
+	/* actually do the disassembly  -- note we do not zero 'c' */
+	size = disasm_addr(disasm_buf, 0, c, 0);
+
+	/* check if we overran the end of the buffer */
+	if ( size > buf_len ) {
+		return(0);
+	}
+
+	fix_op( &c->dest, c->destType );
+	fix_op( &c->src, c->srcType );
+	fix_op( &c->aux, c->auxType );
+
+	return(size);
 }
 
 int sprint_address(char *str, int len, char *buf, int buf_len)
@@ -302,22 +340,13 @@ int vm_add_regtbl_entry(int index, char *name, int size, int type)
 
 int addrexp_new(int scale, int index, int base, int disp, int flags)
 {
-	int id;
-	if (!exp[0].used)
-		id = 0;
-	else if (!exp[1].used)
-		id = 1;
-	else
-		id = 2;
-	exp[id].used = 1;
+	exp.scale = scale;
+	exp.index = index;
+	exp.base = base;
+	exp.disp = disp;
+	exp.flags = flags;
 
-	exp[id].scale = scale;
-	exp[id].index = index;
-	exp[id].base = base;
-	exp[id].disp = disp;
-	exp[id].flags = flags;
-
-	return (id);
+	return (1); /* id */
 }
 
 

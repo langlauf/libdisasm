@@ -14,6 +14,7 @@ struct EXTENSION {
    char *filename;      /* name of extension file [full path] */
    int flags;           /* uhh..... */
    void *lib;           /* pointer to library */
+   float version;	/* version # of this plugin */
    ext_init_fn fn_init;       /* init function for extension */
    ext_clean_fn fn_cleanup;    /* cleanup function for extension */
 }; /* these are linked to from standard extensions : hll, engine, etc */

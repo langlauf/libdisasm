@@ -35,6 +35,24 @@ int disassemble_cleanup(void);
 int sprint_addrexp(char *str, int len, struct addr_exp *e);
 int disassemble_address(char *buf, int buf_len, struct instr *i);
 int sprint_address(char *str, int len, char *buf, int buf_len);
+/* disassemble_address_raw() fills a bastard-style code struct instead of a
+ * libdisasm instr struct. The code struct contains the operands in their
+ * binary format -- the operand type must be used to fetermine how to
+ * display the operand:
+ *   OP_REG  - operand is a pointer to s string constant 
+ *   OP_IMM  - operand is an immediate value
+ *   OP_REL  - operand is a val yo be added to %eip
+ *   OP_ADDR - operand is an absolute address
+ *   OP_EXPR - operand is a pointer to an addr_exp struct
+ *   OP_OFF  - operand is a segment offset 
+ * Note that the operand should be tested to determine if it is signed
+ * (op_type & OP_SIGNED) for OP_IMM and OP_REL types. The string reference
+ * in an OP_REG operand is static & constant and should NOT be free()ed; the
+ * addr_exp reference in an OP_EXPR operand is dynamically allocated and
+ * MUST be free()ed.
+ * The code struct is defined in bastard.h
+ */
+int disassemble_address_raw(char *buf, int buf_len, struct code *c);
 
 /* access to disassembler internal settings */
 /* ext_arch is intended for internal use only */

@@ -118,7 +118,7 @@ instr tbl_Main[] = {
 { 0, INS_PUSH, ADDRMETH_I | OPTYPE_v | OP_R, ARG_NONE, ARG_NONE, cpu_80386, "push", 0, 0, 0},  /* 0x68 */
 { 0, INS_MUL, ADDRMETH_G | OPTYPE_v | OP_R, ADDRMETH_E | OPTYPE_v | OP_R, ADDRMETH_I | OP_SIGNED | OP_R, cpu_80386, "imul", 0, 0, 0},  /* 0x69 */
 {0, INS_PUSH, ADDRMETH_I | OPTYPE_b | OP_R, ARG_NONE, ARG_NONE, cpu_80386, "push", 0, 0, 0},  /* 0x6A */
-{ 0, INS_MUL, ADDRMETH_G | OPTYPE_v | OP_R, ADDRMETH_E | OPTYPE_v | OP_R, ADDRMETH_I |  OP_SIGNED | OP_R, cpu_80386, "imul", 0, 0, 0},  /* 0x6B */
+{ 0, INS_MUL, ADDRMETH_G | OPTYPE_v | OP_R, ADDRMETH_E | OPTYPE_v | OP_R, ADDRMETH_I |  OPTYPE_b | OP_SIGNED | OP_R, cpu_80386, "imul", 0, 0, 0},  /* 0x6B */
 {0, INS_IN,  ADDRMETH_Y | OPTYPE_b | OP_W, OP_REG | OP_R, ARG_NONE, cpu_80386, "insb", 0, 2 + REG_DWORD_OFFSET, 0},  /* 0x6C */
 {0, INS_IN,  ADDRMETH_Y | OPTYPE_v | OP_W, OP_REG | OP_R, ARG_NONE, cpu_80386, "insd", 0, 2 + REG_DWORD_OFFSET, 0},  /* 0x6D */
 {0, INS_OUT,  OP_REG | OP_W, ADDRMETH_X | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "outsb", 2 + REG_DWORD_OFFSET, 0, 0},  /* 0x6E */

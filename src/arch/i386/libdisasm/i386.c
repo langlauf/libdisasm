@@ -452,6 +452,102 @@ void apply_seg(unsigned int prefix, unsigned int *dest_flg,
 	return;
 }
 
+static unsigned int get_opcode_size_flag(int op_type, int op_size, 
+						int addr_size, int *size){
+	unsigned int op_size_flag = 0;
+		/* ++ Do Operand Type ++ */
+		switch (op_type) {
+		/* This sets the operand Size based on the Intel Opcode Map
+		 * (Vol 2, Appendix A). Letter encodings are from section
+		 * A.1.2, 'Codes for Operand Type' */
+		/* NOTE: the bastard size encodings (OP_WORD etc) are based
+		 * on the size of the machine word, NOT Intel's fucked-up
+		 * concept of a WORD (which is a machine-half word, or
+		 * 16 bits on a 32-bit platform). That will make the 
+		 * following a bit confusing as it changes from Intel (or
+		 * "wrong") to bastard (or "right") size terminology.*/
+
+		/* ------------------------ Operand Type ----------------- */
+		case OPTYPE_c:	/* byte or word [op size attr] */
+			*size = (op_size == 4) ? 2 : 1;
+			op_size_flag = (op_size == 4) ? OP_HWORD : OP_BYTE;
+			break;
+		case OPTYPE_a:	/* 2 word or 2 DWORD [op size attr ] */
+			/* when is this used? */
+			*size = (op_size == 4) ? 4 : 2;
+			op_size_flag = (op_size == 4) ? OP_WORD : OP_HWORD;
+			break;
+		case OPTYPE_v:	/* word or dword [op size attr] */
+			*size = (op_size == 4) ? 4 : 2;
+			op_size_flag = (op_size == 4) ? OP_WORD : OP_HWORD;
+			break;
+		case OPTYPE_p:	/* 32/48-bit ptr [op size attr] */
+			*size = (op_size == 4) ? 6 : 4;
+			op_size_flag = (op_size == 4) ? OP_DWORD : OP_WORD;
+			break;
+		case OPTYPE_b:	/* byte, ignore op-size */
+			*size = 1;
+			op_size_flag = OP_BYTE;
+			break;
+		case OPTYPE_w:	/* word, ignore op-size */
+			*size = 2;
+			op_size_flag = OP_HWORD;
+			break;
+		case OPTYPE_d:	/* dword , ignore op-size */
+			*size = 4;
+			op_size_flag = OP_WORD;
+			break;
+		case OPTYPE_s:	/* 6-byte psuedo-descriptor */
+			*size = 6;
+			op_size_flag = OP_DWORD;
+			break;
+		case OPTYPE_q:	/* qword, ignore op-size */
+			*size = 8;
+			op_size_flag = OP_DWORD;
+			break;
+		case OPTYPE_dq:	/* d-qword, ignore op-size */
+		case OPTYPE_ps:	/* 128-bit FP data */
+		case OPTYPE_ss:	/* Scalar elem of 128-bit FP data */
+			*size = 16;
+			op_size_flag = OP_QWORD;
+			break;
+		case OPTYPE_pi:	/* qword mmx register */
+			break;
+		case OPTYPE_si:	/* dword integer register */
+			break;
+		case OPTYPE_fs:	/* single-real */
+			*size = 4;
+			op_size_flag = OP_SREAL;
+			break;
+		case OPTYPE_fd:	/* double real */
+			*size = 4;
+			op_size_flag = OP_DREAL;
+			break;
+		case OPTYPE_fe:	/* extended real */
+			*size = 4;
+			op_size_flag = OP_XREAL;
+			break;
+		case OPTYPE_fb:	/* packed BCD */
+			*size = 4;
+			op_size_flag = OP_BCD;
+			break;
+		case OPTYPE_fv:	/* FPU env: 14/28-bytes */
+			*size = 4;
+			op_size_flag = OP_FPENV;
+			break;
+		case OPTYPE_m:	/* fake operand type used for "lea Gv, M" */
+			*size = addr_size;
+			op_size_flag = (addr_size == 4) ? OP_DWORD : OP_WORD;
+			break;
+		case 0:
+		default:
+			*size = op_size;
+			break;
+		}
+	return( op_size_flag );
+
+}
+
 int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 {
 	/* Decode the operands of an instruction; calls modrm_decode as
@@ -557,96 +653,9 @@ int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 			continue;	/* next operand */
 		}
 
-		/* ++ Do Operand Type ++ */
-		switch (op_type) {
-		/* This sets the operand Size based on the Intel Opcode Map
-		 * (Vol 2, Appendix A). Letter encodings are from section
-		 * A.1.2, 'Codes for Operand Type' */
-		/* NOTE: the bastard size encodings (OP_WORD etc) are based
-		 * on the size of the machine word, NOT Intel's fucked-up
-		 * concept of a WORD (which is a machine-half word, or
-		 * 16 bits on a 32-bit platform). That will make the 
-		 * following a bit confusing as it changes from Intel (or
-		 * "wrong") to bastard (or "right") size terminology.*/
 
-		/* ------------------------ Operand Type ----------------- */
-		case OPTYPE_c:	/* byte or word [op size attr] */
-			size = (op_size == 4) ? 2 : 1;
-			op_size_flag = (op_size == 4) ? OP_HWORD : OP_BYTE;
-			break;
-		case OPTYPE_a:	/* 2 word or 2 DWORD [op size attr ] */
-			/* when is this used? */
-			size = (op_size == 4) ? 4 : 2;
-			op_size_flag = (op_size == 4) ? OP_WORD : OP_HWORD;
-			break;
-		case OPTYPE_v:	/* word or dword [op size attr] */
-			size = (op_size == 4) ? 4 : 2;
-			op_size_flag = (op_size == 4) ? OP_WORD : OP_HWORD;
-			break;
-		case OPTYPE_p:	/* 32/48-bit ptr [op size attr] */
-			size = (op_size == 4) ? 6 : 4;
-			op_size_flag = (op_size == 4) ? OP_DWORD : OP_WORD;
-			break;
-		case OPTYPE_b:	/* byte, ignore op-size */
-			size = 1;
-			op_size_flag = OP_BYTE;
-			break;
-		case OPTYPE_w:	/* word, ignore op-size */
-			size = 2;
-			op_size_flag = OP_HWORD;
-			break;
-		case OPTYPE_d:	/* dword , ignore op-size */
-			size = 4;
-			op_size_flag = OP_WORD;
-			break;
-		case OPTYPE_s:	/* 6-byte psuedo-descriptor */
-			size = 6;
-			op_size_flag = OP_DWORD;
-			break;
-		case OPTYPE_q:	/* qword, ignore op-size */
-			size = 8;
-			op_size_flag = OP_DWORD;
-			break;
-		case OPTYPE_dq:	/* d-qword, ignore op-size */
-		case OPTYPE_ps:	/* 128-bit FP data */
-		case OPTYPE_ss:	/* Scalar elem of 128-bit FP data */
-			size = 16;
-			op_size_flag = OP_QWORD;
-			break;
-		case OPTYPE_pi:	/* qword mmx register */
-			break;
-		case OPTYPE_si:	/* dword integer register */
-			break;
-		case OPTYPE_fs:	/* single-real */
-			size = 4;
-			op_size_flag = OP_SREAL;
-			break;
-		case OPTYPE_fd:	/* double real */
-			size = 4;
-			op_size_flag = OP_DREAL;
-			break;
-		case OPTYPE_fe:	/* extended real */
-			size = 4;
-			op_size_flag = OP_XREAL;
-			break;
-		case OPTYPE_fb:	/* packed BCD */
-			size = 4;
-			op_size_flag = OP_BCD;
-			break;
-		case OPTYPE_fv:	/* FPU env: 14/28-bytes */
-			size = 4;
-			op_size_flag = OP_FPENV;
-			break;
-		case OPTYPE_m:	/* fake operand type used for "lea Gv, M" */
-			size = addr_size;
-			op_size_flag = (addr_size == 4) ? OP_DWORD : OP_WORD;
-			break;
-		case 0:
-		default:
-			size = op_size;
-			break;
-		}
-
+		op_size_flag = get_opcode_size_flag(op_type, op_size, addr_size,
+								&size);
 		/* override default register set based on size of Operand Type */
 		/* this allows mixing of 8, 16, and 32 bit regs in instruction */
 		if (size == 1)
@@ -782,10 +791,14 @@ int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 			break;
 		case ADDRMETH_O:	/* No ModR/M;operand is word/dword offset */
 			/* NOTE: these are actually RVA's and not offsets to IP!!! */
+			/* note bene: 'O' ADDR_METH uses addr_size  to
+			   determine operand size */
+			op_size_flag = get_opcode_size_flag(op_type, addr_size, 
+						 addr_size, &size);
 			*dest_flg[x] |= OP_OFF | OP_SIGNED | op_size_flag;
 			op_get_sized(dest_buf[x], buf + bytes, addr_size);
 			apply_seg(prefix, dest_flg[x], dest_buf[x], &expr);
-			bytes += size;
+			bytes += addr_size;
 			break;
 		case ADDRMETH_X:	/* Memory addressed by DS:SI [string!] */
 			*dest_flg[x] |= OP_STRING | OP_REG | op_size_flag;
