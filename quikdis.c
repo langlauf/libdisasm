@@ -8,7 +8,7 @@
 #include "dislib.h"
 
 int main( int argc, char* argv[]) {
-	int fTarget, entry, x, i=0, n, size;
+	int fTarget, entry, x, i=0;
 	unsigned char* buf;
 	void * image;
 	off_t curr_pos;
@@ -51,19 +51,13 @@ int main( int argc, char* argv[]) {
 			while (i < (ProgramHeader->p_filesz - entry)){
 					memset(&curr_inst, 0, sizeof(struct code));
 					printf("%X\t", TargetHeader->e_entry + i);
-					size = DisasmAddress(buf + i, x86_MAIN, &curr_inst, 
+					i += DisasmAddress(buf + i, x86_MAIN, &curr_inst, 
 										        TargetHeader->e_entry + i);
 					printf("%s", curr_inst.mnemonic);
 					if (curr_inst.dest[0] != 0) printf("\t%s", curr_inst.dest);
 				   if (curr_inst.src[0] != 0) printf(", %s",	curr_inst.src);
 				   if (curr_inst.aux[0] != 0) printf(", %s", curr_inst.aux);
-					printf("\t;");
-					//for ( n = 0; n < size; n++)
-					//	printf("%02X ", buf[i + n]);
-					//printf(";%X,%X,%X,%X\n", curr_inst.mnemType, 
-					//		curr_inst.destType, curr_inst.srcType, curr_inst.auxType);
 					printf("\n");
-					i += size;
 			}
 		}
 	}
