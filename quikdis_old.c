@@ -1,12 +1,14 @@
 /* A quick, dirty, stupid disassembler to test the legacy libdisasm API */
-/* DO NOT use this as an example for libdisasm code! Use quikdis instead.
+/* DO NOT use this as an example for libdisasm code! Use quikdis instead. */
 /* Compile with  `gcc -I. -O3 -L. -ldisasm quikdis_old.c -o quikdis_old` */
 
 #include <stdio.h>
 #include <fcntl.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #include <elf.h>
 #include "libdis.h"
 
@@ -15,7 +17,6 @@ int main(int argc, char *argv[])
 	int fTarget, entry, x, i, n, size, buf_max;
 	unsigned char *buf;
 	void *image;
-	off_t curr_pos;
 	Elf32_Ehdr *TargetHeader;
 	Elf32_Phdr *ProgramHeader;
 	struct instr curr_inst;

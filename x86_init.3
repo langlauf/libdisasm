@@ -1,0 +1,97 @@
+.TH "x86_init" "3" "0.20" "mammon_" "libdisasm"
+.SH "NAME"
+x86_init, x86_cleanup \- initialize and cleanup libdisasm
+.SH "SYNOPSIS"
+\fB#include <libdis.h>\fR
+.br 
+.LP 
+\fBtypedef void (*\fRDISASM_REPORTER\fB)( enum x86_report_codes, void * );\fR
+.LP 
+\fBint x86_init( enum x86_options \fRoptions\fB, DISASM_REPORTER \fRreporter\fB);\fR
+.br 
+\fBint x86_cleanup(void);\fR
+.LP 
+.SH "DESCRIPTION"
+.LP 
+enum x86_options {
+.br 
+	opt_none= 0,
+.br 
+	opt_ignore_nulls=1,	/* ignore sequences of > 4 NULL bytes */
+.br 
+	opt_16_bit=2,		/* 16\-bit/DOS disassembly */
+.br 
+	opt_unknown
+.br 
+};
+.LP 
+enum x86_report_codes {
+.br 
+        report_disasm_bounds,
+.br 
+        report_insn_bounds, 
+.br 
+        report_invalid_insn,
+.br 
+        report_unknown
+.br 
+};
+.LP 
+.SH "EXAMPLES"
+.LP 
+The following provides a skeleton for initializing and terminating \fBlibdisasm\fR:
+.LP 
+void reporter( enum x86_report_codes code, void *arg ) {
+.br 
+        char * str = NULL;
+.br 
+        /* here would could examine the error and do something useful;
+.br 
+         * instead we just print that an error occurred */
+.br 
+        switch ( code ) {
+.br 
+                case report_disasm_bounds:
+.br 
+                        str = "Attempt to disassemble RVA beyond end of buffer";
+.br 
+                        break;
+.br 
+                case report_insn_bounds:
+.br 
+                        str = "Instruction at RVA extends beyond buffer";
+.br 
+                        break;
+.br 
+                case report_invalid_insn:
+.br 
+                        str = "Invalid opcode at RVA";
+.br 
+                        break;
+.br 
+                case report_unknown:
+.br 
+                        str = "Unknown Error";
+.br 
+                        break;
+.br 
+        }
+.br 
+        fprintf(stderr, "ERROR \'%s:\' %p\n", str, arg);
+.br 
+}
+.LP 
+int main( int argc, char **argv ) {
+.br 
+        x86_init(opt_none, reporter);
+.LP 
+        /* disassembler code goes here */
+.LP 
+        x86_cleanup();
+.br 
+}
+.LP 
+.SH "SEE ALSO"
+.LP 
+libdisasm(7), x86_disasm(3), x86_format_insn(3), x86dis(1)
+

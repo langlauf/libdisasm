@@ -3,18 +3,21 @@
 
 #include <stdio.h>
 #include <fcntl.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #include "libdis.h"
+#include "i386.h"	/* for invariant stuff */
 
 int main(int argc, char *argv[])
 {
 	int fTarget, i = 0, n, size;
-	unsigned char *buf, out[20];
+	unsigned char *buf;
 	void *image;
-	off_t curr_pos;
 	struct instr curr_inst;
+	x86_invariant_t inv;
 	struct stat tmpStat;
 
 
@@ -38,10 +41,10 @@ int main(int argc, char *argv[])
 	while (i < tmpStat.st_size) {
 		memset(&curr_inst, 0, sizeof (struct code));
 		/* test invariant */
-		size = disasm_invariant( buf + i, tmpStat.st_size - i, out, 20 );
+		size = x86_invariant_insn( buf + i, tmpStat.st_size - i, &inv );
 		printf("%X\t", i);
 		for ( n = 0; n < size; n++ ) {
-			printf("%02X ", out[n]);
+			printf("%02X ", inv.bytes[n]);
 		}
 		printf("\t\t\t;invariant bytes (signature)\n");
 
