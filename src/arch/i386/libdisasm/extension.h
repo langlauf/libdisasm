@@ -28,6 +28,7 @@ struct EXT__ARCH {   /* disassembler information */
    char sz_dword;           // Size of Machine DoubleWord in Bytes
    int SP;                  // RegID of Stack Pointer
    int IP;                  // RegID of Instruction Pointer
+   int FP;                  // RegID of Frame Pointer
    int reg_gen;             // start of General regs in table
    int reg_seg, reg_fp;     // start of seg, FPU regs in table
    int reg_in, reg_out;     // start of procedure IN, OUT regs in table
