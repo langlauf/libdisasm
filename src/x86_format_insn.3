@@ -1,0 +1,25 @@
+.TH "x86_format_insn" "3" "0.20" "mammon_" "libdisasm"
+.SH "NAME"
+x86_format_insn, x86_format_mnemonic, x86_format_operand \- generate
+a string representation of a disassembled instruction.
+.SH "SYNOPSIS"
+\fB#include <libdis.h>\fR
+.br 
+.LP 
+\fBint x86_format_operand(x86_op_t *\fRop\fB, x86_insn_t *\fRinsn\fB, char *\fRbuf\fB, 
+.br 
+	int \fRlen\fB, enum x86_asm_format \fRformat\fB);\fR
+
+\fBint x86_format_mnemonic(x86_insn_t *\fRinsn\fB, char *\fRbuf\fB, int \fRlen\fB,
+.br  
+	enum x86_asm_format \fRformat\fB );\fR
+
+\fBint x86_format_insn(x86_insn_t *\fRinsn\fB, char *\fRbuf\fB, int \fRlen\fB, 
+.br 
+	enum x86_asm_format \fRformat\fB );\fR
+\fB\fR
+
+.SH "DESCRIPTION"
+enum x86_asm_format { native_syntax, intel_syntax, att_syntax };
+.SH "EXAMPLES"
+.SH "SEE ALSO"

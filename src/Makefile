@@ -42,4 +42,4 @@ testdis: libdis
 	$(CC) $(FLAGS) testdis.c $(ARCHIVE) -o testdis
 
 clean:
-	@$(RM) quikdis testdis  $(LIBNAME)
+	@$(RM) quikdis quikdis_old testdis $(ARCHIVE) $(OBJ) $(LIBNAME)

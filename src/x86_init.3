@@ -1,0 +1,21 @@
+.TH "x86_init" "3" "0.20" "mammon_" "libdisasm"
+.SH "NAME"
+x86_init, x86_cleanup \- initialize and cleanup libdisasm
+.SH "SYNOPSIS"
+
+
+
+typedef void (*DISASM_REPORTER)( enum x86_report_codes code, void *arg );
+
+
+int x86_init( enum x86_options options, DISASM_REPORTER reporter);
+int x86_cleanup(void);
+.SH "DESCRIPTION"
+enum x86_options {
+	opt_none= 0,
+	opt_ignore_nulls=1,	/* ignore sequences of > 4 NULL bytes */
+	opt_16_bit=2,		/* 16\-bit/DOS disassembly */
+	opt_unknown
+};
+.SH "EXAMPLES"
+.SH "SEE ALSO"
