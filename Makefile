@@ -6,7 +6,7 @@
 ###*                                                                     *###
 ###*    Chief Makefile Architect : the grugq                             *###
 ###*    other people that did something:                                 *###
-###*                                    mammon_ and ReZiDeNt             *###
+###*                                    mammon_ and ReZiDeNt and MO_K    *###
 ###*                                                                     *###
 ###*                                                                     *###
 ###***********************************************************************###
@@ -24,14 +24,15 @@ RM      = /bin/rm -rf
 TERM    = -lcurses
 #TERM   = -ltermcap   # if you don't have ncurses
 PROGRAM = bastard
-VER     = 0.04
+VER     = 0.05
 
 # ------------------------------------ Stuff in the ./src directory --
 DEFINES  = -I./include -I/usr/local/include -DREADLINE_LIBRARY
 #CFLAGS  = -Wall -g $(DEFINES)
-CFLAGS   = -rdynamic  -O3 $(DEFINES)
+CFLAGS   = -ggdb -rdynamic $(DEFINES) -g
+#CFLAGS   = -rdynamic  -O3 $(DEFINES)
 LIBS     = -lm -ldl -ltyphoon -lseer -lreadline $(TERM)
-LDFLAGS  = -L./lib
+LDFLAGS  = -L./lib 
 
 SRCDIR  = src
 INCDIR  = include
@@ -78,14 +79,26 @@ A_ARS   =       \
 
 # ------------------------------------ Tarfile collections -----------
 DOCS       = doc .license README.* TODO
-REQ_FILES  = $(DOCS) utils lib formats Makefile bdb.dbd $(SRCDIR)/bdb.ddl
-BAST_SRC   = $(SRCS) $(HDRS) $(A_SRCS) $(A_HDRS) $(REQ_FILES) 
-BAST_BIN   = $(A_SOS) $(PROGRAM) $(REQ_FILES)
+XTRA       = src/seer src/typhoon
+REQ_FILES  = scripts utils lib formats Makefile bdb.dbd $(SRCDIR)/bdb.ddl
+BAST_SRC   = $(SRCS) $(HDRS) $(A_SRCS) $(A_HDRS) $(REQ_FILES) $(DOCS) $(XTRA)
+BAST_BIN   = $(A_SOS) $(PROGRAM) $(REQ_FILES) $(DOCS)
 ARCH_SRC   = $(A_SRCS) $(A_HDRS) doc/libi386.txt ${INCDIR}/dislib.h Makefile
 ARCH_BIN   = $(A_SOS) $(A_ARS) doc/libi386.txt ${INCDIR}/dislib.h
 
 # ------------------------------------ Actual Makefile Rulesets ------
 all:            $(PROGRAM)
+
+seer: libseer.a
+typhoon: libtyphoon.a
+
+libseer.a:
+	@echo "   Compiling SeerC embedded interpreter..."
+	@cd ./src/seer; make install
+
+libtyphoon.a:
+	@echo "   Compiling Typhoon embedded relational database..."
+	@cd ./src/typhoon; [ -f src/Makefile ] || ./configure; make install
 
 $(A_OBJS):  $(A_SRCS)
 	$(CC) $(A_CFLAGS) -o $@ -c $<
@@ -101,13 +114,21 @@ arch: $(A_SOS) $(A_ARS)
 .c.o: $(SRCS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ -c $<
 
-$(PROGRAM): $(OBJS) $(A_SOS) $(A_ARS) 
+$(PROGRAM): libseer.a libtyphoon.a $(OBJS) $(A_SOS) $(A_ARS) 
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) $(LIBS) -o $(PROGRAM)
+	@ [ -f /etc/debian_version ]  || echo "Real Bastards use Debian!"
+
+release: $(PROGRAM)
 	strip $(PROGRAM)
 
 clean:
 	$(RM) $(PROGRAM) $(OBJS) ${SRCDIR}/*~ *core
 	$(RM) $(A_OBJS) $(A_SOS) $(A_ARS)
+
+distclean: clean
+	cd src/typhoon; make distclean
+	cd src/seer; make clean
+	$(RM) doc/man/catl/*
 
 tgz:
 	$(TAR) $(PROGRAM)-$(VER).tar $(BAST_SRC)
@@ -118,3 +139,7 @@ tgz:
 	$(ZIP) libdisasm-$(VER).tar
 	$(TAR) libdisasm_bin-$(VER).tar $(ARCH_BIN)
 	$(ZIP) libdisasm_bin-$(VER).tar
+	mv $(PROGRAM)-$(VER).tar.gz $(PROGRAM)-$(VER).tgz
+	mv $(PROGRAM)_bin-$(VER).tar.gz $(PROGRAM)_bin-$(VER).tgz
+	mv libdisasm-$(VER).tar.gz libdisasm-$(VER).tgz
+	mv libdisasm_bin-$(VER).tar.gz libdisasm_bin-$(VER).tgz

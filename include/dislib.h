@@ -2,7 +2,7 @@
    it contains the instruction flags and code structure def's 
    it should also contain lib prototypes and be included in the
    bastard, hence the #ifdef */
-   
+
 typedef unsigned char   BYTE;
 typedef unsigned short  WORD;
 typedef unsigned int    DWORD;
@@ -26,9 +26,15 @@ struct code {  /* size 100 */
     int     destType;
     int     srcType;
     int     auxType;
+	 unsigned long    destConst;
+    unsigned long    srcConst;
+    unsigned long    auxConst;
 };
 
  /* Operand and instruction types */
+#define OP_R         0x001    /* operand is READ */
+#define OP_W         0x002    /* operand is WRITTEN */
+#define OP_X         0x004    /* operand is EXECUTED */
 #define OP_REG			0x100		/* register */
 #define OP_IMM			0x200		/* immediate value */
 #define OP_IND			0x300		/* indirect memory reference */
