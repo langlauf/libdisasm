@@ -3,9 +3,11 @@
 #include "i386_opcode.h"
 
 
+#define WILDCARD_BYTE 0xF4
+
 extern struct EXT__ARCH *settings;
 extern int mode_16;
-extern int DecodeByte(BYTE b, struct modRM_byte *modrm);
+extern int byte_decode(BYTE b, struct modRM_byte *modrm);
 
 int disasm_invariant_modrm( unsigned char *in, unsigned char *out ) {
 	struct modRM_byte modrm;
@@ -16,7 +18,7 @@ int disasm_invariant_modrm( unsigned char *in, unsigned char *out ) {
 	int size = 0;	/* modrm byte is already counted */
 
 
-	DecodeByte(*in, &modrm);	/* get bitfields */
+	byte_decode(*in, &modrm);	/* get bitfields */
 
 	out[0] = in[0];	/* save modrm byte */
 	cin = &in[1];
@@ -27,7 +29,7 @@ int disasm_invariant_modrm( unsigned char *in, unsigned char *out ) {
 	if ( ! mode_16 && modrm.rm == MODRM_RM_SIB && 
 			      modrm.mod != MODRM_MOD_NOEA ) {
 		size ++;
-		DecodeByte(*cin, (struct modRM_byte *)&sib);
+		byte_decode(*cin, (struct modRM_byte *)&sib);
 
 		out[1] = in[1];	/* save sib byte */
 		cin = &in[2];
@@ -36,17 +38,18 @@ int disasm_invariant_modrm( unsigned char *in, unsigned char *out ) {
 		i = (unsigned int *)&out[2];
 
 		if ( sib.base == SIB_BASE_EBP && ! modrm.mod ) {
-			*i = 0xF4F4F4F4;	/* pad as variant */
+			/* disp 32 is variant! */
+			memset( i, WILDCARD_BYTE, 4 );
 			size += 4;
 		}
 	}
 
 	if (! modrm.mod && modrm.rm == 101) {
 		if ( mode_16 ) {	/* straight RVA in disp */
-			*s = 0xF4F4;	/* pad as variant */
+			memset( s, WILDCARD_BYTE, 2 );
 			size += 2;
 		} else {
-			*i = 0xF4F4F4F4;	/* pad as variant */
+			memset( i, WILDCARD_BYTE, 2 );
 			size += 4;
 		}
 	} else if (modrm.mod && modrm.mod < 3) {
@@ -65,9 +68,11 @@ int disasm_invariant_modrm( unsigned char *in, unsigned char *out ) {
 }
 
 
+/* TODO: test this in insns like "insn IMM, MODRM" to make sure IMM
+         does not overwrite MODRM byte!! */
 int disasm_invariant_decode( instr *t, unsigned char *in, unsigned char *out,
 						int prefix ) {
-	unsigned int addr_size, op_size, pad = 0xF4F4F4F4;
+	unsigned int addr_size, op_size;
 	unsigned int operands[3] = { t->dest, t->src, t->aux };
 	unsigned int op_flags[3] = { t->destFlg, t->srcFlg, t->auxFlg };
 	int x, bytes = 0, size = 0, modrm = 0;
@@ -93,8 +98,9 @@ int disasm_invariant_decode( instr *t, unsigned char *in, unsigned char *out,
 	}
 
 	for (x = 0; x < 3; x++) {
-		if (operands[x] || op_flags[x] & OP_REG) { /* op is hard-coded */
-			continue;	/* next operand */
+		if (operands[x] || op_flags[x] & OP_REG) { 
+			/* operand is hard-coded */
+			continue;
 		}
 
 		switch (op_flags[x] & OPTYPE_MASK) {
@@ -143,26 +149,34 @@ int disasm_invariant_decode( instr *t, unsigned char *in, unsigned char *out,
 				break;
 			case ADDRMETH_A: case ADDRMETH_O:
 				/* pad with xF4's */
-				memcpy( &out[bytes + modrm], &pad, size );
+				memset( &out[bytes + modrm], WILDCARD_BYTE, 
+					size );
 				bytes += size;
 				break;
 			case ADDRMETH_I: case ADDRMETH_J:
 				/* grab imm value */
-				memcpy( &out[bytes + modrm], &in[bytes + modrm], size );
+				if ((op_flags[x] & OPTYPE_MASK) == OPTYPE_v) {
+					memset( &out[bytes + modrm], 
+						WILDCARD_BYTE, size );
+				} else {
+					memcpy( &out[bytes + modrm], 
+						&in[bytes + modrm], size );
+				}
+					
 				bytes += size;
 				break;
 			case ADDRMETH_F:
 			default:
 				break;
 		}
-
 	}
 
 	return (bytes + modrm);
 }
 
 
-int disasm_invariant_tbllookup( unsigned char *buf, int tbl, char *out, int p ){
+int disasm_invariant_tbllookup( unsigned char *buf, int tbl, char *out, int p, 
+		struct ARCH_INVARIANT *inv ){
 	int x, size = 1;
 	instr *t;
 	unsigned char op = buf[0];
@@ -181,25 +195,33 @@ int disasm_invariant_tbllookup( unsigned char *buf, int tbl, char *out, int p ){
 	op &= tables86[tbl].mask;
 
 	/* lookup opcode byte in table */
-	if (t[op].mnemFlg & INSTR_PREFIX) {				/* prefix */
+	if (t[op].mnemFlg & INSTR_PREFIX) {
 		for (x = 0; prefix_table[x][0] != 0; x++) {
-			if (prefix_table[x][0] == op) 	p |= prefix_table[x][1];
+			if (prefix_table[x][0] == op) 	
+				p |= prefix_table[x][1];
 		}
-		size += disasm_invariant_tbllookup( &buf[1], tbl, &out[1], p);
-	} else if (t[op].table && !t[op].mnemonic[0]) {		/* other table */
+		size += disasm_invariant_tbllookup(&buf[1], tbl, &out[1], p, inv);
+	} else if (t[op].table && !t[op].mnemonic[0]) {
+		/* recurse looking up sub-table */
 		size += disasm_invariant_tbllookup( &buf[1], 
-									t[op].table, &out[1], p);
-	} else if (!t[op].mnemonic[0]) { 				/* invalid */
+				t[op].table, &out[1], p, inv);
+	} else if (!t[op].mnemonic[0]) {
+		/* invalid insn */
 		size = 0;
 		out[0] = 0;
-	} else {								/* we have an opcode */
-		size += disasm_invariant_decode(&t[op], &buf[size], &out[size], p);
+	} else {
+		size += disasm_invariant_decode(&t[op], &buf[size], 
+						&out[size], p);
+		inv->insn_type = t->mnemFlg;
+		inv->dest_type = t->destFlg;
+		inv->src_type = t->srcFlg;
+		inv->aux_type = t->auxFlg;
 	}
 
 	return(size);
 }
 
-int disasm_invariant( unsigned char *in, int in_len, unsigned char *out, int out_len ) {
+int disasm_invariant(unsigned char *in, int in_len, struct ARCH_INVARIANT *inv){
 	unsigned char bytes[MAX_INSTRUCTION_SIZE] = {0};	/* safe input buffer */
 	unsigned char buf[MAX_INSTRUCTION_SIZE]   = {0};	/* safe output buffer */
 	int len, size;
@@ -207,9 +229,9 @@ int disasm_invariant( unsigned char *in, int in_len, unsigned char *out, int out
 	len = (in_len > 20) ? 20 : in_len;
 	memcpy( bytes, in, len );
 
-	size = disasm_invariant_tbllookup( bytes, x86_MAIN, buf, 0 ); 
+	size = disasm_invariant_tbllookup( bytes, x86_MAIN, buf, 0, inv ); 
 	
-	len = (out_len > 20) ? 20 : out_len;
-	memcpy( out, buf, len );
-	return( size );
+	inv->buf_len = (size > 20) ? 20 : size;
+	memcpy( inv->buf, buf, inv->buf_len );
+	return( inv->buf_len );
 }

@@ -33,8 +33,8 @@ struct instr {
 int disassemble_init(int options, int format);
 int disassemble_cleanup(void);
 int sprint_addrexp(char *str, int len, struct addr_exp *e);
-int disassemble_address(char *buf, struct instr *i);
-int sprint_address(char *str, int len, char *buf);
+int disassemble_address(char *buf, int buf_len, struct instr *i);
+int sprint_address(char *str, int len, char *buf, int buf_len);
 
 /* access to disassembler internal settings */
 /* ext_arch is intended for internal use only */
@@ -53,5 +53,22 @@ struct EXT__ARCH ext_arch;
 #define cpu_sp() ext_arch.SP
 #define cpu_fp() ext_arch.FP
 #define cpu_ip() ext_arch.IP
+
+/* These all take operand type as a parameter */
+/* operand type, size, permissions, modifiers */
+#define op_type(x) (x & OP_TYPE_MASK)
+#define op_size(x) (x & OP_SIZE_MASK)
+#define op_perm(x) (x & OP_PERM_MASK)
+#define op_mod(x) (x & OP_MOD_MASK)
+/* operand segment override */
+#define op_seg(x) (x & OP_SEG_MASK)
+/* is operand a register */
+#define op_isreg(x) (x & OP_REG)
+
+/* These take instruction type as a parameter */
+#define insn_type(x)  (x & INSN_TYPE_MASK)
+#define insn_group(x) (x & INSN_GROUP_MASK)
+#define insn_mod(x) (x & INSN_MOD_MASK)
+#define insn_size(x) (x & INSN_SIZE_MASK)
 
 #endif

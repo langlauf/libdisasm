@@ -48,16 +48,17 @@ typedef unsigned int    DWORD;
 #define REG_FPTAG_SIZE 2
 #define REG_EIP_SIZE 4
 #define REG_IP_SIZE 2
-/* add TR LDTR [6 bytes] and IDTR GDTR (4bytes)
+/* add TR LDTR [6 bytes] and IDTR GDTR (4bytes) */
 
 
 /* prototypes */
 void ext_arch_init( void *param);
-void InitRegTable( void );
+void regtable_init( void );
 int get_prologue(struct code **table);
 int get_epilogue(struct code **table);
 int disasm_addr( BYTE *buf, int tbl, struct code *c, long rva);
-int disasm_invariant( unsigned char *in, int in_len, unsigned char *out, int out_len );
+int disasm_invariant( unsigned char *in, int in_len, 
+			    struct ARCH_INVARIANT *inv );
 
 
 /* Module options */

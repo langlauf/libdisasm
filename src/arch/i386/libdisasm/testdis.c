@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
 
 		/* test code */
 		printf("%X\t", i);
-		size = disassemble_address(buf + i, &curr_inst);
+		size = disassemble_address(buf + i, tmpStat.st_size -i, &curr_inst);
 		if (size) {
 			for (n = 0; n < 12; n++) {
 				if (n < size)

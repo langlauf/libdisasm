@@ -294,7 +294,7 @@ instr tbl_0F[] = {
 { 0, INS_OTHER, ADDRMETH_V | OPTYPE_ps | OP_W, ADDRMETH_W | OPTYPE_q | OP_R, ARG_NONE, cpu_PENTIUM2, "unpckhps", 0, 0, 0},  /* 0x15 */
 { 0, INS_OTHER, ADDRMETH_V | OPTYPE_q | OP_W, ADDRMETH_W | OPTYPE_q | OP_R, ARG_NONE, cpu_PENTIUM2, "movhps", 0, 0, 0},  /* 0x16 */
 { 0, INS_OTHER, ADDRMETH_W | OPTYPE_q | OP_W, ADDRMETH_V | OPTYPE_q | OP_R, ARG_NONE, cpu_PENTIUM2, "movhps", 0, 0, 0},  /* 0x17 */
-{19, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x18 */
+{18, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0x18 */
 {0, 0, ARG_NONE, ARG_NONE, ARG_NONE, 0, 0, 0, 0, 0},  /* 0x19 */
 {0, 0, ARG_NONE, ARG_NONE, ARG_NONE, 0, 0, 0, 0, 0},  /* 0x1A */
 {0, 0, ARG_NONE, ARG_NONE, ARG_NONE, 0, 0, 0, 0, 0},  /* 0x1B */
@@ -458,8 +458,8 @@ instr tbl_0F[] = {
 {0, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, "ud1", 0, 0, 0},  /* 0xB9 */
 {23, 0, ARG_NONE, ARG_NONE, ARG_NONE, cpu_80386, 0, 0, 0, 0},  /* 0xBA */
 { 0, INS_BITTEST, ADDRMETH_E | OPTYPE_v | OP_R, ADDRMETH_G | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "btc", 0, 0, 0},  /* 0xBB */
-{ 0, INS_BITTEST, ADDRMETH_G | OPTYPE_v | OP_R, ADDRMETH_E | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "bsf", 0, 0, 0},  /* 0xBC */
-{ 0, INS_BITTEST, ADDRMETH_G | OPTYPE_v | OP_R, ADDRMETH_E | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "bsr", 0, 0, 0},  /* 0xBD */
+{ 0, INS_BITTEST, ADDRMETH_G | OPTYPE_v | OP_R | OP_W, ADDRMETH_E | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "bsf", 0, 0, 0},  /* 0xBC */
+{ 0, INS_BITTEST, ADDRMETH_G | OPTYPE_v | OP_R | OP_W, ADDRMETH_E | OPTYPE_v | OP_R, ARG_NONE, cpu_80386, "bsr", 0, 0, 0},  /* 0xBD */
 { 0, INS_MOV, ADDRMETH_G | OPTYPE_v | OP_W, ADDRMETH_E | OPTYPE_b | OP_R, ARG_NONE, cpu_80386, "movsx", 0, 0, 0},  /* 0xBE */
 { 0, INS_MOV, ADDRMETH_G | OPTYPE_v | OP_W, ADDRMETH_E | OPTYPE_w | OP_R, ARG_NONE, cpu_80386, "movsx", 0, 0, 0},  /* 0xBF */
 { 0, INS_ADD, ADDRMETH_E | OPTYPE_b | OP_W, ADDRMETH_G | OPTYPE_b | OP_W, ARG_NONE, cpu_80486, "xadd", 0, 0, 0},  /* 0xC0 */
@@ -551,10 +551,10 @@ instr tbl_0F01[] = {
 };
 
 instr tbl_0F18[] = {
-{ 0, INS_SYSTEM,  OP_W, ARG_NONE, ARG_NONE, cpu_PENTIUM2, "prefetch", 0, 0, 0},  /* 0x0 */
-{ 0, INS_SYSTEM, OP_REG | OP_W, ARG_NONE, ARG_NONE, cpu_PENTIUM2, "prefetch", 0 + REG_TEST_OFFSET, 0, 0},  /* 0x1 */
-{ 0, INS_SYSTEM, OP_REG | OP_W, ARG_NONE, ARG_NONE, cpu_PENTIUM2, "prefetch", 1 + REG_TEST_OFFSET, 0, 0},  /* 0x2 */
-{ 0, INS_SYSTEM, OP_REG | OP_W, ARG_NONE, ARG_NONE, cpu_PENTIUM2, "prefetch", 2 + REG_TEST_OFFSET, 0, 0},  /* 0x3 */
+{ 0, INS_SYSTEM,  OP_W | ADDRMETH_M, ARG_NONE, ARG_NONE, cpu_PENTIUM2, "prefetch", 0, 0, 0},  /* 0x0 */
+{ 0, INS_SYSTEM, OP_REG | OP_W | ADDRMETH_M, ARG_NONE, ARG_NONE, cpu_PENTIUM2, "prefetch", 0 + REG_TEST_OFFSET, 0, 0},  /* 0x1 */
+{ 0, INS_SYSTEM, OP_REG | OP_W | ADDRMETH_M, ARG_NONE, ARG_NONE, cpu_PENTIUM2, "prefetch", 1 + REG_TEST_OFFSET, 0, 0},  /* 0x2 */
+{ 0, INS_SYSTEM, OP_REG | OP_W | ADDRMETH_M, ARG_NONE, ARG_NONE, cpu_PENTIUM2, "prefetch", 2 + REG_TEST_OFFSET, 0, 0},  /* 0x3 */
 {0, 0, ARG_NONE, ARG_NONE, ARG_NONE, 0, 0, 0, 0, 0},  /* 0x4 */
 {0, 0, ARG_NONE, ARG_NONE, ARG_NONE, 0, 0, 0, 0, 0},  /* 0x5 */
 {0, 0, ARG_NONE, ARG_NONE, ARG_NONE, 0, 0, 0, 0, 0},  /* 0x6 */
@@ -974,7 +974,7 @@ instr tbl_fpuDA_rest[] = {
 { 0,0,ARG_NONE,ARG_NONE,ARG_NONE,cpu_80387,0,0,0,0 },  /*0xE6*/
 { 0,0,ARG_NONE,ARG_NONE,ARG_NONE,cpu_80387,0,0,0,0 },  /*0xE7*/
 { 0,0,ARG_NONE,ARG_NONE,ARG_NONE,cpu_80387,0,0,0,0 },  /*0xE8*/
-{ 0,INS_FPU,ARG_NONE,ARG_NONE,ARG_NONE,cpu_80387,"fucompp",0,0,0 /*0xE9*/ }, 
+{ 0,INS_FPU,ARG_NONE,ARG_NONE,ARG_NONE,cpu_80387,"fucompp",0,0,0 }, /*0xE9*/
 { 0,0,ARG_NONE,ARG_NONE,ARG_NONE,cpu_80387,0,0,0,0 },  /*0xEA*/
 { 0,0,ARG_NONE,ARG_NONE,ARG_NONE,cpu_80387,0,0,0,0 },  /*0xEB*/
 { 0,0,ARG_NONE,ARG_NONE,ARG_NONE,cpu_80387,0,0,0,0 },  /*0xEC*/

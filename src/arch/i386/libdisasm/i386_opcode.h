@@ -135,6 +135,20 @@ extern char *reg_fpu[];
 #define MODRM_MOD_DISP8      0x01
 #define MODRM_MOD_DISP32   0x02
 #define MODRM_MOD_NOEA      0x03
+/* 16-bit modrm flags */
+#define MOD16_MOD_NODISP      0
+#define MOD16_MOD_DISP8       1
+#define MOD16_MOD_DISP16      2
+#define MOD16_MOD_REG         3
+
+#define MOD16_RM_BXSI         0
+#define MOD16_RM_BXDI         1
+#define MOD16_RM_BPSI         2
+#define MOD16_RM_BPDI         3
+#define MOD16_RM_SI           4
+#define MOD16_RM_DI           5
+#define MOD16_RM_BP           6
+#define MOD16_RM_BX           7
 
 /* SIB flags */
 #define SIB_INDEX_NONE       0x04

@@ -1,3 +1,4 @@
+libdisasm.txt
 Basic disasm engine -- based on the x86 ARCH extension for the bastard
 
 FILES
@@ -60,7 +61,7 @@ This translates into C code like the following:
    disassemble_init(0, INTEL_SYNTAX);
    
    while ( pos < BUF_SIZE ) {
-      size = disassemble_address(buf + pos, &i);
+      size = disassemble_address(buf + pos, BUF_SIZE - pos, &i);
       if (size) { 
          /* ... do something with i */
          pos += size;
@@ -88,6 +89,26 @@ syntax; valid options are
 
 with "native" syntax currently being the same as "intel".
 
+The disassemble_address() routine fills a structure with a disassembly of
+the instruction:
+
+	int disassemble_address(char *buf, int buf_len, struct instr *i);
+
+The first argument to disassemble_address() is a pointer to the location to
+be disassembled; this is assumed to be a buffer read from the target, or a
+pointer into a memory map of the target. The second parameter is the length
+of the buffer or memory map, which will prevent libdisasm from running over
+the length of the buffer in the case of a truncated [invalid] instruction at
+the end of the target -- note that the buf_len parameter can also be used to
+indicate a point at which libdisasm should stop disassembling the current
+instruction, i.e. a program section boundary. The third and final parameter
+is a pointer to a structure representing the instruction, which will be
+zeroed out by disassemble_address() and filled with information about the
+disassembled instruction.
+
+The structure that is filled by disassemble_address() has the following
+definition:
+
    struct instr {
       char    mnemonic[16];      /* mnemonic for instruction */
       char    dest[32];          /* string representation of operand 'dest' */
@@ -101,7 +122,8 @@ with "native" syntax currently being the same as "intel".
    };
 
 The mnemonic and operand types are defined in bastard.h as follows:
- /* Operand and instruction types */
+
+ /* Operand Types */
 /*                   Permissions: */
 #define OP_R         0x001      /* operand is READ */
 #define OP_W         0x002      /* operand is WRITTEN */
@@ -140,14 +162,16 @@ The mnemonic and operand types are defined in bastard.h as follows:
 /* operand masks */
 #define OP_PERM_MASK 0x0000007  /* perms are NOT mutually exclusive */
 #define OP_TYPE_MASK 0x0000F00  /* types are mututally exclusive */
-#define OP_MOD_MASK  0x00FF000  /* mods are NOT mutual;y exclusive */
+#define OP_MOD_MASK  0x00FF000  /* mods are NOT mutually exclusive */
 #define OP_SEG_MASK  0x00F0000  /* segs are NOT mutually exclusive */
 #define OP_SIZE_MASK 0x0F00000  /* sizes are mutually exclusive */
 
 #define OP_REG_MASK    0x0000FFFF /* lower WORD is register ID */
 #define OP_REGTBL_MASK 0xFFFF0000 /* higher word is register type [gen/dbg] */
 
-/* instruction types [groups] */
+
+/* Instruction Types */
+/*   Instruction Groups */
 #define INS_EXEC		0x1000
 #define INS_ARITH		0x2000
 #define INS_LOGIC		0x3000
@@ -287,9 +311,9 @@ subroutine recognition, and other automatic analyses.
 
 If the additional information about the instruction is not needed, the 
 sprint_address() routine can be used in place of disassemble_address(). This
-routine takes as parameters a buffer to print to, the length of the buffer, and
-the address of the bytes to disassemble. The sample code provided above could
-therefore be replaced with:
+routine takes as parameters a buffer to print to, the length of the buffer, 
+the address of the bytes to disassemble, and the length of the buffer containing
+those bytes. The sample code provided above could therefore be replaced with:
 
 
    char buf[BUF_SIZE];      /* buffer of bytes to disassemble */
@@ -300,56 +324,22 @@ therefore be replaced with:
    disassemble_init(0, INTEL_SYNTAX);
    
    while ( pos < BUF_SIZE ) {
-      size = sprint_address(output, LINE_SIZE, buf + pos);
-      if (size) { 
-         printf("%08X:   %s\n", pos, output);
-         pos += size;
-      } else {
-         printf("%08X:   Invalid Instruction %02X\n", pos, buf[pos]);
-         pos++;
+      size = sprint_address(output, LINE_SIZE, buf + pos, BUF_SIZE - pos);
+      printf("%08X:   %s\n", pos, output);
+      if ( !size) { 
+	    size = 1;	/* advance to the next instruction */
       }
+      pos += size;
    }
 
    disassemble_cleanup();
 
+Note that sprint_address() will fill the output buffer with either a 
+disassembled instruction, or an 'invalid instruction' message.
+
 
 IMPLEMENTATION NOTES
 --------------------
-The disassemble_address() library routine and the internal disasm_addr() routine
-do not perform bounds-checking on the buffer of bytes passed for disassembly. In
-order to prevent a malformed code instruction from causing a SEGV (for example,
-by including the first byte of a multi-byte instruction as the last byte of the
-file), it is recommended that the programmer pass a secure buffer the size of
-the maximum instruction length (for Intel, 20 bytes) containing the bytes to be
-disassembled. For example:
-
-   static unsigned char disasm_buf = NULL;
-   int bytes_left;
-   ...
-   while ( pos < BUF_SIZE ) {
-      /* zero-fill buffer of max_instruction_size */
-      if (! disasm_buf) disasm_buf = malloc( cpu_inst_size() );
-	memset(disasm_buf, 0, cpu_inst_size() );
-
-	/* copy appropriate # of bytes into buffer */
-	bytes_left = BUF_SIZE - pos;
-	size = ( bytes_left >= cpu_inst_size() ) ? cpu_inst_size() : bytes_left;
-	memcpy( disasm_buf, buf + pos, size );
-
-	/* do disassembly of said buffer */
-      size = sprint_address(output, LINE_SIZE, disasm_buf);
-
-	/* check if there was an error */
-      if (size && size <= bytes_left) { 
-         printf("%08X:   %s\n", pos, output);
-         pos += size;
-      } else {
-         printf("%08X:   Invalid Instruction %02X\n", pos, buf[pos]);
-         pos++;
-      }
-   }
-	
-
 Intel has a habit of implying operands in certain of its instructions, notably
 
 	0x6C    	INSB	(e)di, dx
@@ -382,7 +372,7 @@ by libdisasm may not be compatible with standard Intel-syntax assemblers; the
 intent is to generate instructions that are suitable for automatic analysis,
 not for subsequent re-assembly. Blame Intel for blatantly encouraging the use
 of programming-through-side-effects...hell, blame them for 20-bit addressing,
-and a lot of other bad design decisions.
+ModR/M opcode extensions, the SIB byte, and a lot of other bad design decisions.
 
 
 
@@ -392,4 +382,17 @@ That should do it. As usual, flames, fixes, and contributions welcome.
 
 BUGS
 ----
-   MMX and other weird instructions are not yet supported.
+	In 16-bit mode, instructions with implied register operands 
+	[e.g. 0x5A pop edx] print 32-bit register names. There are
+	no plans to fix this.
+
+
+CHANGES
+-------
+	ver 0.17 : semantics of disassemble_address() and sprint_address()
+	           changed to allow user to specify bounds of the buffer to
+		     disassemble. Added a static library to the Makefile and
+		     forced the test tools to use it by default [thanks Rakan].
+		     Provided macros in libdis.h for working with operand and
+		     instruction types. Finally wrote 16-bit mode.
+

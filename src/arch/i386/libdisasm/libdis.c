@@ -238,15 +238,27 @@ int sprint_op(char *str, int len, int op, int type)
 	return (strlen(str));
 }
 
-int disassemble_address(char *buf, struct instr *i)
+int disassemble_address(char *buf, int buf_len, struct instr *i)
 {
-	struct code c = { 0 };
 	int size;
+	struct code c = { 0 };
+	unsigned char disasm_buf[32] = {0};
 
 	/* clear all 3 addr_exp's */
 	memset(exp, 0, sizeof (struct addr_exp) * 3);
 	memset(i, 0, sizeof (struct instr));
-	size = disasm_addr(buf, 0, &c, 0);
+
+	/* copy binary code to temporary buffer */
+	memcpy( disasm_buf, buf, ( buf_len > cpu_inst_size() ) ? 
+			               cpu_inst_size() : buf_len     );
+
+	/* actually do the disassembly */
+	size = disasm_addr(disasm_buf, 0, &c, 0);
+
+	/* check if we overran the end of the buffer */
+	if ( size > buf_len ) {
+		return(0);
+	}
 	/* copy the bastard 'native' code struct to a more general instr struct */
 	strncpy(i->mnemonic, c.mnemonic, 16);
 	sprint_op(i->dest, 32, c.dest, c.destType);
@@ -260,12 +272,16 @@ int disassemble_address(char *buf, struct instr *i)
 	return (size);
 }
 
-int sprint_address(char *str, int len, char *buf)
+int sprint_address(char *str, int len, char *buf, int buf_len)
 {
 	struct instr i;
 	int size;
 
-	size = disassemble_address(buf, &i);
+	size = disassemble_address(buf, buf_len, &i);
+	if (! size) {
+		snprintf(str, len, "invalid instruction: %02X\n", *buf);
+		return(0);
+	}
 	snprintf(str, len, "%s\t%s", i.mnemonic, i.dest);
 	if (i.src[0])
 		snprintf(str, len - strlen(str), "%s, %s", str, i.src);

@@ -1,5 +1,6 @@
 #ifndef BASTARD_H
 #define BASTARD_H
+
 /* stripped-down combination bastard.h and bdb.h for libdisasm */
 struct addr_exp {  
     int     scale;
@@ -31,6 +32,32 @@ struct code_effect {  /* size 16 */
     int     reg;
     int     change;
 };
+
+struct function {  /* size 22 */
+    unsigned long    id;
+    unsigned long    rva;
+    unsigned short   size;
+    unsigned long    ret_type;
+    unsigned long    comment;
+    unsigned short   tag;
+};
+
+struct int_code {  /* size 50 */
+    unsigned long    id;
+    unsigned long    opcode;
+    unsigned long    src;
+    unsigned long    sType;
+    unsigned long    dest;
+    unsigned long    dType;
+    unsigned long    arg;
+    unsigned long    aType;
+    unsigned long    func;
+    unsigned long    order;
+    unsigned long    rva;
+    unsigned long    comment;
+    unsigned short   tag;
+};
+
 
 /* copied from extensions/arch.h in the bastard */
 /* Public Parts */
@@ -89,6 +116,14 @@ struct code_effect {  /* size 16 */
 #define OP_REG_MASK    0x0000FFFF /* lower WORD is register ID */
 #define OP_REGTBL_MASK 0xFFFF0000 /* higher word is register type [gen/dbg] */
 
+#define OP_PERM( type )       (type & OP_PERM_MASK)
+#define OP_TYPE( type )       (type & OP_TYPE_MASK)
+#define OP_MOD( type )        (type & OP_MOD_MASK)
+#define OP_SEG( type )        (type & OP_SEG_MASK)
+#define OP_SIZE( type )       (type & OP_SIZE_MASK)
+#define OP_REGID( type )      (type & OP_REG_MASK)
+#define OP_REGTYPE( type )    (type & OP_REGTBL_MASK)
+
 /* instruction types [groups] */
 #define INS_EXEC		0x1000
 #define INS_ARITH		0x2000
@@ -105,106 +140,122 @@ struct code_effect {  /* size 16 */
 #define INS_OTHER		0xF000
 
 /* INS_EXEC group */
-#define INS_BRANCH	INS_EXEC | 0x01	/* Unconditional branch */
-#define INS_BRANCHCC	INS_EXEC | 0x02	/* Conditional branch */
-#define INS_CALL		INS_EXEC | 0x03	/* Jump to subroutine */
-#define INS_CALLCC	INS_EXEC | 0x04	/* Jump to subroutine */
-#define INS_RET		INS_EXEC | 0x05	/* Return from subroutine */
-#define INS_LOOP		INS_EXEC | 0x06	/* loop to local label */
+#define INS_BRANCH	(INS_EXEC | 0x01)	/* Unconditional branch */
+#define INS_BRANCHCC	(INS_EXEC | 0x02)	/* Conditional branch */
+#define INS_CALL		(INS_EXEC | 0x03)	/* Jump to subroutine */
+#define INS_CALLCC	(INS_EXEC | 0x04)	/* Jump to subroutine */
+#define INS_RET		(INS_EXEC | 0x05)	/* Return from subroutine */
+#define INS_LOOP		(INS_EXEC | 0x06)	/* loop to local label */
 
 /* INS_ARITH group */
-#define INS_ADD 		INS_ARITH | 0x01
-#define INS_SUB		INS_ARITH | 0x02
-#define INS_MUL		INS_ARITH | 0x03
-#define INS_DIV		INS_ARITH | 0x04
-#define INS_INC		INS_ARITH | 0x05	/* increment */
-#define INS_DEC		INS_ARITH | 0x06	/* decrement */
-#define INS_SHL		INS_ARITH | 0x07	/* shift right */
-#define INS_SHR		INS_ARITH | 0x08	/* shift left */
-#define INS_ROL		INS_ARITH | 0x09	/* rotate left */
-#define INS_ROR		INS_ARITH | 0x0A	/* rotate right */
+#define INS_ADD 		(INS_ARITH | 0x01)
+#define INS_SUB		(INS_ARITH | 0x02)
+#define INS_MUL		(INS_ARITH | 0x03)
+#define INS_DIV		(INS_ARITH | 0x04)
+#define INS_INC		(INS_ARITH | 0x05)	/* increment */
+#define INS_DEC		(INS_ARITH | 0x06)	/* decrement */
+#define INS_SHL		(INS_ARITH | 0x07)	/* shift right */
+#define INS_SHR		(INS_ARITH | 0x08)	/* shift left */
+#define INS_ROL		(INS_ARITH | 0x09)	/* rotate left */
+#define INS_ROR		(INS_ARITH | 0x0A)	/* rotate right */
 
 /* INS_LOGIC group */
-#define INS_AND		INS_LOGIC | 0x01
-#define INS_OR		INS_LOGIC | 0x02
-#define INS_XOR		INS_LOGIC | 0x03
-#define INS_NOT		INS_LOGIC | 0x04
-#define INS_NEG		INS_LOGIC | 0x05
+#define INS_AND		(INS_LOGIC | 0x01)
+#define INS_OR		(INS_LOGIC | 0x02)
+#define INS_XOR		(INS_LOGIC | 0x03)
+#define INS_NOT		(INS_LOGIC | 0x04)
+#define INS_NEG		(INS_LOGIC | 0x05)
 
 /* INS_STACK group */
-#define INS_PUSH		INS_STACK | 0x01
-#define INS_POP		INS_STACK | 0x02
-#define INS_PUSHREGS	INS_STACK | 0x03	/* push register context */
-#define INS_POPREGS	INS_STACK | 0x04	/* pop register context */
-#define INS_PUSHFLAGS	INS_STACK | 0x05	/* push all flags */
-#define INS_POPFLAGS	INS_STACK | 0x06	/* pop all flags */
-#define INS_ENTER		INS_STACK | 0x07	/* enter stack frame */
-#define INS_LEAVE		INS_STACK | 0x08	/* leave stack frame */
+#define INS_PUSH		(INS_STACK | 0x01)
+#define INS_POP		(INS_STACK | 0x02)
+#define INS_PUSHREGS	(INS_STACK | 0x03)	/* push register context */
+#define INS_POPREGS	(INS_STACK | 0x04)	/* pop register context */
+#define INS_PUSHFLAGS	(INS_STACK | 0x05)	/* push all flags */
+#define INS_POPFLAGS	(INS_STACK | 0x06)	/* pop all flags */
+#define INS_ENTER		(INS_STACK | 0x07)	/* enter stack frame */
+#define INS_LEAVE		(INS_STACK | 0x08)	/* leave stack frame */
 
 /* INS_COND group */
-#define INS_TEST		INS_COND | 0x01
-#define INS_CMP		INS_COND | 0x02
+#define INS_TEST		(INS_COND | 0x01)
+#define INS_CMP		(INS_COND | 0x02)
 
 /* INS_LOAD group */
-#define INS_MOV		INS_LOAD | 0x01
-#define INS_MOVCC		INS_LOAD | 0x02
-#define INS_XCHG		INS_LOAD | 0x03
-#define INS_XCHGCC	INS_LOAD | 0x04
+#define INS_MOV		(INS_LOAD | 0x01)
+#define INS_MOVCC		(INS_LOAD | 0x02)
+#define INS_XCHG		(INS_LOAD | 0x03)
+#define INS_XCHGCC	(INS_LOAD | 0x04)
 
 /* INS_ARRAY group */
-#define INS_STRCMP	INS_ARRAY | 0x01
-#define INS_STRLOAD	INS_ARRAY | 0x02
-#define INS_STRMOV	INS_ARRAY | 0x03
-#define INS_STRSTOR	INS_ARRAY | 0x04
-#define INS_XLAT		INS_ARRAY | 0x05
+#define INS_STRCMP	(INS_ARRAY | 0x01)
+#define INS_STRLOAD	(INS_ARRAY | 0x02)
+#define INS_STRMOV	(INS_ARRAY | 0x03)
+#define INS_STRSTOR	(INS_ARRAY | 0x04)
+#define INS_XLAT		(INS_ARRAY | 0x05)
 
 /* INS_BIT group */
-#define INS_BITTEST	INS_BIT | 0x01
-#define INS_BITSET	INS_BIT | 0x02
-#define INS_BITCLR	INS_BIT | 0x03
+#define INS_BITTEST	(INS_BIT | 0x01)
+#define INS_BITSET	(INS_BIT | 0x02)
+#define INS_BITCLR	(INS_BIT | 0x03)
 
 /* INS_FLAG group */
-#define INS_CLEARCF	INS_FLAG | 0x01	/* clear Carry flag */
-#define INS_CLEARZF	INS_FLAG | 0x02	/* clear Zero flag */
-#define INS_CLEAROF	INS_FLAG | 0x03	/* clear Overflow flag */
-#define INS_CLEARDF	INS_FLAG | 0x04	/* clear Direction flag */
-#define INS_CLEARSF	INS_FLAG | 0x05	/* clear Sign flag */
-#define INS_CLEARPF	INS_FLAG | 0x06	/* clear Parity flag */
-#define INS_SETCF		INS_FLAG | 0x07
-#define INS_SETZF		INS_FLAG | 0x08
-#define INS_SETOF		INS_FLAG | 0x09
-#define INS_SETDF		INS_FLAG | 0x0A
-#define INS_SETSF		INS_FLAG | 0x0B
-#define INS_SETPF		INS_FLAG | 0x0C
-#define INS_TOGCF		INS_FLAG | 0x10	/* toggle */
-#define INS_TOGZF		INS_FLAG | 0x20
-#define INS_TOGOF		INS_FLAG | 0x30
-#define INS_TOGDF		INS_FLAG | 0x40
-#define INS_TOGSF		INS_FLAG | 0x50
-#define INS_TOGPF		INS_FLAG | 0x60
+#define INS_CLEARCF	(INS_FLAG | 0x01)	/* clear Carry flag */
+#define INS_CLEARZF	(INS_FLAG | 0x02)	/* clear Zero flag */
+#define INS_CLEAROF	(INS_FLAG | 0x03)	/* clear Overflow flag */
+#define INS_CLEARDF	(INS_FLAG | 0x04)	/* clear Direction flag */
+#define INS_CLEARSF	(INS_FLAG | 0x05)	/* clear Sign flag */
+#define INS_CLEARPF	(INS_FLAG | 0x06)	/* clear Parity flag */
+#define INS_SETCF		(INS_FLAG | 0x07)
+#define INS_SETZF		(INS_FLAG | 0x08)
+#define INS_SETOF		(INS_FLAG | 0x09)
+#define INS_SETDF		(INS_FLAG | 0x0A)
+#define INS_SETSF		(INS_FLAG | 0x0B)
+#define INS_SETPF		(INS_FLAG | 0x0C)
+#define INS_TOGCF		(INS_FLAG | 0x10)	/* toggle */
+#define INS_TOGZF		(INS_FLAG | 0x20)
+#define INS_TOGOF		(INS_FLAG | 0x30)
+#define INS_TOGDF		(INS_FLAG | 0x40)
+#define INS_TOGSF		(INS_FLAG | 0x50)
+#define INS_TOGPF		(INS_FLAG | 0x60)
 
 /* INS_FPU */
+#define INS_FMOV       (INSN_FPU | 0x1)
+#define INS_FMOVCC     (INSN_FPU | 0x2)
+#define INS_FNEG       (INSN_FPU | 0x3)
+#define INS_FABS       (INSN_FPU | 0x4)
+#define INS_FADD       (INSN_FPU | 0x5)
+#define INS_FSUB       (INSN_FPU | 0x6)
+#define INS_FMUL       (INSN_FPU | 0x7)
+#define INS_FDIV       (INSN_FPU | 0x8)
+#define INS_FSQRT      (INSN_FPU | 0x9)
+#define INS_FCMP       (INSN_FPU | 0xA)
+#define INS_FCOS       (INSN_FPU | 0xC)                /* cosine */
+#define INS_FLDPI      (INSN_FPU | 0xD)                /* load pi */
+#define INS_FLDZ       (INSN_FPU | 0xE)                /* load 0 */
+#define INS_FTAN       (INSN_FPU | 0xF)                /* tanget */
+#define INS_FSINE      (INSN_FPU | 0x10)               /* sine */
+#define INS_FSYS       (INSN_FPU | 0x20)               /* misc */
 
 /* INS_TRAP */
-#define INS_TRAP		INS_TRAPS | 0x01		/* generate trap */
-#define INS_TRAPCC	INS_TRAPS | 0x02		/* conditional trap gen */
-#define INS_TRET		INS_TRAPS | 0x03		/* return from trap */
-#define INS_BOUNDS	INS_TRAPS | 0x04		/* gen bounds trap */
-#define INS_DEBUG		INS_TRAPS | 0x05		/* gen breakpoint trap */
-#define INS_TRACE		INS_TRAPS | 0x06		/* gen single step trap */
-#define INS_INVALIDOP	INS_TRAPS | 0x07		/* gen invalid instruction */
-#define INS_OFLOW		INS_TRAPS | 0x08		/* gen overflow trap */
+#define INS_TRAP		(INS_TRAPS | 0x01)		/* generate trap */
+#define INS_TRAPCC	(INS_TRAPS | 0x02)		/* conditional trap gen */
+#define INS_TRET		(INS_TRAPS | 0x03)		/* return from trap */
+#define INS_BOUNDS	(INS_TRAPS | 0x04)		/* gen bounds trap */
+#define INS_DEBUG		(INS_TRAPS | 0x05)		/* gen breakpoint trap */
+#define INS_TRACE		(INS_TRAPS | 0x06)		/* gen single step trap */
+#define INS_INVALIDOP	(INS_TRAPS | 0x07)		/* gen invalid insn */
+#define INS_OFLOW		(INS_TRAPS | 0x08)		/* gen overflow trap */
 
 /* INS_SYSTEM */
-#define INS_HALT		INS_SYSTEM | 0x01		/* halt machine */
-#define INS_IN		INS_SYSTEM | 0x02		/* input form port */
-#define INS_OUT		INS_SYSTEM | 0x03		/* output to port */
-#define INS_CPUID		INS_SYSTEM | 0x04		/* identify cpu */
+#define INS_HALT		(INS_SYSTEM | 0x01)		/* halt machine */
+#define INS_IN		(INS_SYSTEM | 0x02)		/* input form port */
+#define INS_OUT		(INS_SYSTEM | 0x03)		/* output to port */
+#define INS_CPUID		(INS_SYSTEM | 0x04)		/* identify cpu */
 
 /* INS_OTHER */
-#define INS_NOP		INS_OTHER | 0x01
-#define INS_BCDCONV	INS_OTHER | 0x02	/* convert to/from BCD */
-#define INS_SZCONV	INS_OTHER | 0x03	/* convert size of operand */
+#define INS_NOP		(INS_OTHER | 0x01)
+#define INS_BCDCONV	(INS_OTHER | 0x02)	/* convert to/from BCD */
+#define INS_SZCONV	(INS_OTHER | 0x03)	/* convert size of operand */
  
    /* instruction size */
 #define INS_BYTE      0x10000   /* operand is  8 bits/1 byte  */
@@ -221,6 +272,11 @@ struct code_effect {  /* size 16 */
 #define INS_GROUP_MASK	0x1000
 #define INS_SIZE_MASK   0xF0000
 #define INS_MOD_MASK    0xFF00000
+
+#define INS_TYPE( type )      ( type & INS_TYPE_MASK )
+#define INS_GROUP( type )     ( type & INS_GROUP_MASK )
+#define INS_SIZE( type )      ( type & INS_SIZE_MASK )
+#define INS_MOD( type )       ( type & INS_MOD_MASK )
 
    /* code patterns */
 #define FUNCTION_PROLOGUE 0x0001

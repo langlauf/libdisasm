@@ -1,5 +1,5 @@
 /* A quick, dirty, stupid disassembler to test the engine */
-/* Compile with  `gcc -I. -O3 -ggdb -L. -ldisasm quikdis.c -o quikdis` */
+/* Compile with  `gcc -I. -O3 -L. -ldisasm quikdis.c -o quikdis` */
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -11,7 +11,7 @@
 
 int main(int argc, char *argv[])
 {
-	int fTarget, entry, x, i = 0, n, size;
+	int fTarget, entry, x, i, n, size, buf_max;
 	unsigned char *buf;
 	void *image;
 	off_t curr_pos;
@@ -54,12 +54,15 @@ int main(int argc, char *argv[])
 			    ("\tDisassembling from entry point at offset %X\n",
 			     entry);
 
-			/* read entire program segment into buffer */
+			/* use entire program segment as buffer */
+			i = 0;
 			buf = image + entry;
-			while (i < (ProgramHeader->p_filesz - entry)) {
+			buf_max = ProgramHeader->p_filesz - entry;
+			while (i < buf_max) {
 				memset(&curr_inst, 0, sizeof (struct code));
 				printf("%X\t", TargetHeader->e_entry + i);
-				size = disassemble_address(buf + i, &curr_inst);
+				size = disassemble_address(buf + i, buf_max - i,
+						               &curr_inst);
 				if (size) {
 					for (n = 0; n < 12; n++) {
 						if (n < size)

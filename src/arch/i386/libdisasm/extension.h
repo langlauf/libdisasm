@@ -1,5 +1,13 @@
 #ifndef EXTENSION_H
 #define EXTENSION_H
+
+struct ARCH_INVARIANT {		/* invariant representation */
+	unsigned char buf[64];	/* no arch has >64-byte insns ;) */
+	int buf_len;
+	int insn_type;
+	int dest_type, src_type, aux_type;
+};
+
 typedef void (*ext_init_fn)(void *);
 typedef void (*ext_clean_fn)(void);
 struct EXTENSION {
@@ -11,15 +19,18 @@ struct EXTENSION {
 }; /* these are linked to from standard extensions : hll, engine, etc */
 
 /* predef 's for use with dynamic loading */
-typedef int (*disfunc_fn)(unsigned char *, unsigned char, struct code *, long);
-typedef int (*getcode_fn)(struct code **);
+typedef int (*disaddr_fn)(unsigned char *, int, struct code *, long);
+typedef int (*disinv_fn)(unsigned char *, int, struct ARCH_INVARIANT *);
+typedef int (*pattern_fn)( unsigned long , int );
+typedef int (*geneffect_fn)(struct code *, struct code_effect *);
+typedef int (*genint_fn)(struct function *);
 struct EXT__ARCH {   /* disassembler information */
    struct EXTENSION ext;
-   //char name[PATH_MAX];      // name of disassembler lib [lib(target.cpu).so]
    int options;             // module-specific options
    /* ------------------  CPU Information  -------------------- */
    int cpu_hi, cpu_lo;      // CPU high and low version numbers
    char endian;             // 0 = BIG, 1 = LITTLE
+   char wc_byte;            // wildcard byte for signatures
    char sz_addr;            // Default Size of Address in Bytes
    char sz_oper;            // Default Size of Operand in Bytes
    char sz_inst;            // Default Size of Instruction in Bytes
@@ -27,8 +38,8 @@ struct EXT__ARCH {   /* disassembler information */
    char sz_word;            // Size of Machine Word in Bytes
    char sz_dword;           // Size of Machine DoubleWord in Bytes
    int SP;                  // RegID of Stack Pointer
-   int IP;                  // RegID of Instruction Pointer
    int FP;                  // RegID of Frame Pointer
+   int IP;                  // RegID of Instruction Pointer
    int reg_gen;             // start of General regs in table
    int reg_seg, reg_fp;     // start of seg, FPU regs in table
    int reg_in, reg_out;     // start of procedure IN, OUT regs in table
@@ -38,8 +49,10 @@ struct EXT__ARCH {   /* disassembler information */
    int sz_regtable;
    unsigned char *reg_storage;
    /* ------------------ Library Functions -------------------- */
-   disfunc_fn fn_disasm_addr;      // ptr to disassembly routine
-   getcode_fn fn_get_prologue;   // WARNING From here down are considered   
-   getcode_fn fn_get_epilogue;   //         "optional"  
+   disaddr_fn   fn_disasm_addr;      // ptr to disassembly routine
+   disinv_fn    fn_disasm_inv;
+   pattern_fn   fn_code_pat;
+   geneffect_fn fn_gen_effect;
+   genint_fn    fn_gen_int;
 };
 #endif
