@@ -4,7 +4,9 @@
 #include <bastard.h>
 #include <extension.h>
 #include <vm.h>
-#include <dirent.h>
+#ifndef _MSC_VER
+	#include <dirent.h>
+#endif
 
 typedef unsigned char   BYTE;
 typedef unsigned short  WORD;
@@ -53,7 +55,7 @@ typedef unsigned int    DWORD;
 
 /* prototypes */
 void ext_arch_init( void *param);
-void regtable_init( void );
+void ext_arch_cleanup(void);
 int get_prologue(struct code **table);
 int get_epilogue(struct code **table);
 int disasm_addr( BYTE *buf, int tbl, struct code *c, long rva);

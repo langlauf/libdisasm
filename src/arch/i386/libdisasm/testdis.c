@@ -1,4 +1,4 @@
-/* Utility to test libdisasm. Disassembles from the start of a file.  */
+/* Utility to test libdisasm. Disassembles from the start of a * file. */
 /* Compile with  `gcc -I. -O3 -ggdb -L. -ldisasm testdis.c -o testdis` */
 
 #include <stdio.h>

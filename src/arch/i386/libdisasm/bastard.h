@@ -81,8 +81,12 @@ struct int_code {  /* size 50 */
 #define OP_REL       0x300      /* relative Address [offset from IP] */
 #define OP_ADDR      0x400      /* Absolute Address */
 #define OP_EXPR      0x500      /* Address Expression [e.g. SIB byte] */
-#define OP_PTR       0x600      /* Operand is an Address containing a Pointer */
-#define OP_OFF       0x700      /* Operand is an offset from a seg/selector */
+#define OP_OFF       0x600      /* Operand is an offset from a seg/selector */
+/* used in the bastard */
+#define OP_PTR       0x700      /* Operand is an Address containing a Pointer */
+#define OP_NAME      0x800
+#define OP_FUNC      0x900
+#define OP_STREF     0xA00
 /*                   Modifiers: */
 #define OP_SIGNED    0x001000   /* operand is signed */
 #define OP_STRING    0x002000   /* operand a string */
@@ -297,17 +301,29 @@ struct int_code {  /* size 50 */
 #define ADDREXP_QWORD   0x04
 #define ADDREXP_REG     0x10 /*0x00 implies non-register */
 #define AddrExp_ScaleType(x) x & ADDEXP_SCALE_MASK
-#define AddrExp_IndexType(x) (x & ADDEXP_INDEX_MASK) >> 8
-#define AddrExp_BaseType(x) (x & ADDEXP_BASE_MASK) >> 16
-#define AddrExp_DispType(x) (x & ADDEXP_DISP_MASK) >> 24
+#define AddrExp_IndexType(x) (x & ADDEXP_INDEX_MASK) >> ADDEXP_INDEX_OFFSET
+#define AddrExp_BaseType(x) (x & ADDEXP_BASE_MASK) >> ADDEXP_BASE_OFFSET
+#define AddrExp_DispType(x) (x & ADDEXP_DISP_MASK) >> ADDEXP_DISP_OFFSET
 
 /* pointless defines for fixing i386.c */
 #define CODE_RVA 0
 
-#endif
-int vm_add_regtbl_entry( int index, char *name, int size, int type);
+/* EXPRLIST: a linked list of address expressions */
+struct EXPRLIST {
+	unsigned long id;
+	int scale;
+	int index;
+	int base;
+	int disp;
+	int flags;
+	int used;
+	struct EXPRLIST *next, *prev;
+};
+
+int addrexp_get( int id, struct EXPRLIST *dest );
 int addrexp_new(int scale,int index,int base,int disp,int flags);
 int bdb_index_find(int, void *, void *);
 int bdb_index_next(int, void *);
 
+#endif
 

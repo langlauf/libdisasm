@@ -1,12 +1,15 @@
 #ifndef EXTENSION_H
 #define EXTENSION_H
 
-struct ARCH_INVARIANT {		/* invariant representation */
-	unsigned char buf[64];	/* no arch has >64-byte insns ;) */
+#include "bastard.h"
+
+struct ARCH_INVARIANT {
+	unsigned char buf[64];
 	int buf_len;
 	int insn_type;
 	int dest_type, src_type, aux_type;
 };
+
 
 typedef void (*ext_init_fn)(void *);
 typedef void (*ext_clean_fn)(void);
@@ -30,14 +33,14 @@ struct EXT__ARCH {   /* disassembler information */
    int options;             // module-specific options
    /* ------------------  CPU Information  -------------------- */
    int cpu_hi, cpu_lo;      // CPU high and low version numbers
-   char endian;             // 0 = BIG, 1 = LITTLE
-   char wc_byte;            // wildcard byte for signatures
-   char sz_addr;            // Default Size of Address in Bytes
-   char sz_oper;            // Default Size of Operand in Bytes
-   char sz_inst;            // Default Size of Instruction in Bytes
-   char sz_byte;            // Size of Machine Byte in Bits
-   char sz_word;            // Size of Machine Word in Bytes
-   char sz_dword;           // Size of Machine DoubleWord in Bytes
+   unsigned char endian;    // 0 = BIG, 1 = LITTLE
+   unsigned char wc_byte;   // wildcard byte for signatures
+   unsigned char sz_addr;   // Default Size of Address in Bytes
+   unsigned char sz_oper;   // Default Size of Operand in Bytes
+   unsigned char sz_inst;   // Default Size of Instruction in Bytes
+   unsigned char sz_byte;   // Size of Machine Byte in Bits
+   unsigned char sz_word;   // Size of Machine Word in Bytes
+   unsigned char sz_dword;  // Size of Machine DoubleWord in Bytes
    int SP;                  // RegID of Stack Pointer
    int FP;                  // RegID of Frame Pointer
    int IP;                  // RegID of Instruction Pointer

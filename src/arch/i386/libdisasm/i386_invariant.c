@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "i386_opcode.h"
+#ifdef _MSC_VER
+	#include <memory.h>
+#endif
 
 
 #define WILDCARD_BYTE 0xF4

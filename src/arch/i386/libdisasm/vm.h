@@ -7,6 +7,12 @@ struct REGTBL_ENTRY {
    char mnemonic[8];
 };
 
+char * vm_get_reg_name(int index);
+int vm_get_reg_size(int index);
+int vm_get_reg_type(int index);
+int vm_add_regtbl_entry( int index, char *name, int size, int type);
+//int vm_get_reg_byname( char *name );
+//int vm_get_num_regs();
 
 /* register types */
 #define REG_GENERAL	0x01		/* general-purpose */

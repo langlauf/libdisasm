@@ -1,31 +1,913 @@
-#include <libdis.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-struct addr_exp exp;		/* one for dest, src, and aux in struct code */
-int assembler_format = NATIVE_SYNTAX;
+#include "libdis.h"
+#include "i386.h"
+
+#ifdef _MSC_VER
+	#define snprintf _snprintf
+#endif
+
+
+/* =========================================================== INIT/TERM */
 struct EXT__ARCH ext_arch = {0};
+static DISASM_REPORTER reporter_func = NULL;
 
-int disassemble_init(int options, int format)
+int x86_init(enum x86_options options, DISASM_REPORTER reporter)
 {
-	assembler_format = format;
-	ext_arch.options = options;
+	ext_arch.options = (int) options;
+	reporter_func = reporter;
+
 	ext_arch_init(&ext_arch);
 	return (1);
 }
 
-int disassemble_cleanup(void)
+void x86_set_options( enum x86_options options ){
+	ext_arch.options = (int) options;
+}
+
+int x86_get_options( void ) {
+	return(ext_arch.options);
+}
+
+int x86_cleanup(void)
 {
 	ext_arch_cleanup();
 	return (1);
 }
 
-char *get_reg_name(int index)
-{
-	if (index >= ext_arch.sz_regtable)
-		return (0);
-	return (ext_arch.reg_table[index].mnemonic);
+/* =========================================================== ERRORS */
+void x86_report_error( enum x86_report_codes code, void *arg ) {
+	if ( reporter_func ) {
+		(*reporter_func)(code, arg);
+	}
 }
 
-int fmt_expr_op(int operand, int flags, char *buf, int len)
+/* =========================================================== UTILITY */
+
+
+static inline void get_reg( int id, x86_reg_t *reg ) {
+	strncpy(reg->name, vm_get_reg_name(id), MAX_REGNAME);
+	reg->type = vm_get_reg_type( id );
+	reg->size = vm_get_reg_size( id );
+}
+
+/* Each addrexp can only be used once; this call removes the addr_exp from
+ * the list. */
+static int get_ea_from_addrexp(unsigned long id, x86_ea_t *ea ) {
+	struct EXPRLIST e;
+	if (! ea ) {
+		return(0);
+	}
+
+	memset( ea, 0, sizeof(x86_ea_t) );
+
+	if ( addrexp_get(id, &e) ) {
+		ea->disp_sign = ea->disp_size = 0;
+		ea->disp = (unsigned long) e.disp;
+		ea->scale = e.scale ? e.scale : 1;
+		if ( AddrExp_IndexType(e.flags) ) {
+			get_reg(e.index, &ea->index);
+		}
+		if ( AddrExp_BaseType(e.flags) ) {
+			get_reg(e.base, &ea->base);
+		}
+		/* get size, sign of displacement */
+		if ( AddrExp_DispType(e.flags) == ADDREXP_BYTE ) {
+			if ( (char) e.disp < 0 ) {
+				ea->disp_sign = 1;
+			}
+			ea->disp_size = 1;
+		} else if ( AddrExp_DispType(e.flags) == ADDREXP_WORD ) {
+			if ( (short) e.disp < 0 ) {
+				ea->disp_sign = 1;
+			}
+			ea->disp_size = 2;
+		} else if ( AddrExp_DispType(e.flags) == ADDREXP_DWORD ) {
+			if ( (long) e.disp < 0 ) {
+				ea->disp_sign = 1;
+			}
+			ea->disp_size = 4;
+		}
+		return(1);
+	}
+
+	return(0);
+}
+
+static int insn_op_from_code( x86_op_t *op, unsigned long op_val, int op_type ){
+	x86_ea_t *ea;
+	x86_reg_t *reg;
+
+	if (! op ) { return(0); }
+
+	if (! op_type ) {
+		op->type = op_unused;
+		return(1);
+	}
+	/* set operand type and value */
+	op->access = OP_PERM(op_type);
+	op->type = OP_TYPE(op_type) >> 8;
+	if (! op->type ) {
+		op->type = op_unknown;
+	}
+	op->flags = OP_MOD(op_type) >> 12;
+	op->datatype = OP_SIZE(op_type) >> 20;
+	if (! op->datatype ) {
+		op->datatype = op_dword;
+	}
+
+	/* TODO: handle float, etc types */
+	switch ( OP_TYPE(op_type) ) {
+		case OP_REG:
+			/* op_val is reg ID */
+			get_reg( op_val, &op->data.reg );
+			break;
+		case OP_IMM:
+			if ( OP_SIZE(op_type) == OP_BYTE ) {
+				if ( OP_MOD(op_type) & OP_SIGNED )
+					op->data.sbyte = (char)op_val;
+				else
+					op->data.byte = (unsigned char)op_val;
+			} else if (OP_SIZE(op_type) == OP_HWORD ) {
+				if ( OP_MOD(op_type) & OP_SIGNED )
+					op->data.sword = (short)op_val;
+				else
+					op->data.word = (unsigned short)op_val;
+			} else if (OP_SIZE(op_type) == OP_DWORD ) {
+				/* yeah, this will always be truncated
+				 * until I switch to 64-bit data types
+				 * ... oh well ;P */
+				op->data.qword = (long long)op_val;
+			} else  { /* WORD is default */
+				if ( OP_MOD(op_type) & OP_SIGNED )
+					op->data.sdword = (long)op_val;
+				else
+					op->data.dword = op_val;
+			}
+			break;
+		case OP_REL:
+			/* op_val is a signed something */
+			if ( OP_SIZE(op_type) == OP_BYTE ) {
+				op->data.near_offset = (char) op_val;
+			} else {
+				op->data.far_offset = (long) op_val;
+			}
+			break;
+		case OP_ADDR:
+			/* op_val is an unsigned long */
+			op->data.address = (void *) op_val;
+			break;
+		case OP_EXPR:
+			/* op_val is expr ID */
+			get_ea_from_addrexp(op_val, &op->data.effective_addr);
+			break;
+		case OP_OFF:
+			/* op_val is an unsigned long */
+			op->data.offset = op_val;
+			break;
+		default:
+			break;
+	}
+	return(1);
+}
+
+static char *prefix_strings[] = {
+	"",	/* no prefix */
+	"repz ", /* the trailing spaces make it easy to prepend to mnemonic */
+	"repnz ",
+	"lock ",
+	"branch delay " /* unused in x86 */
+};
+
+static int x86insn_from_code( x86_insn_t *insn, struct code *code ) {
+	char *ptr;
+
+	if ( ! insn || ! code ) {
+		return(0);
+	}
+
+	insn->group = INS_GROUP(code->mnemType) >> 12;
+	insn->type = INS_TYPE(code->mnemType);
+	insn->prefix = INS_MOD(code->mnemType) >> 20;
+	if ( (unsigned int) insn->prefix > 8 ) {
+		insn->prefix = insn_no_prefix;
+	}
+
+	/* concat all prefix strings */
+	if ( (int)insn->prefix & 1 ) {
+		strncat(insn->prefix_string, prefix_strings[1], 32);
+	} else if ( (int)insn->prefix & 2 ) {
+		strncat(insn->prefix_string, prefix_strings[2], 32);
+	}
+	if ( (int)insn->prefix & 4 ) {
+		strncat(insn->prefix_string, prefix_strings[3], 32);
+	}
+	if ( (int)insn->prefix & 8 ) {
+		strncat(insn->prefix_string, prefix_strings[4], 32);
+	}
+	
+	/* create mnemonic and operands */
+	strncpy(insn->mnemonic, code->mnemonic, 7);
+	insn_op_from_code( &insn->operands[(int)op_dest], code->dest,
+			   code->destType );
+	insn_op_from_code( &insn->operands[(int)op_src], code->src,
+			   code->srcType );
+	insn_op_from_code( &insn->operands[(int)op_imm], code->aux,
+			   code->auxType );
+
+	return(1);
+	
+}
+
+int x86_disasm( unsigned char *buf, unsigned int buf_len, 
+		unsigned long buf_rva, unsigned int offset,
+		x86_insn_t *insn ){
+	int len, size;
+	struct code c = { 0 };
+	unsigned char disasm_buf[32] = {0};
+
+	if ( ! buf || ! insn || ! buf_len ) {
+		/* caller screwed up somehow */
+		return(0);
+	}
+
+	/* clear insn struct */
+	memset(insn, 0, sizeof (x86_insn_t));
+
+	if ( offset >= buf_len ) {
+		/* another caller screwup ;) */
+		x86_report_error(report_disasm_bounds, (void*)buf_rva+offset);
+		return(0);
+	}
+
+	/* copy binary code to temporary buffer */
+	len = buf_len - offset;
+	memcpy( disasm_buf, buf + offset, (len > cpu_inst_size()) ? 
+			               cpu_inst_size() : len  );
+
+	/* actually do the disassembly */
+	size = disasm_addr(disasm_buf, 0, &c, 0);
+	
+	/* check and see if we had an invalid instruction */
+	if (! size ) {
+		x86_report_error(report_invalid_insn, (void*)buf_rva+offset );
+		return(0);
+	}
+
+	/* check if we overran the end of the buffer */
+	if ( size > len ) {
+		x86_report_error( report_insn_bounds, (void*)buf_rva + offset );
+		return(0);
+	}
+
+	/* fill x86_insn_t with struct code stuff */
+	x86insn_from_code( insn, &c );
+
+	/* fill rva, offset, and bytes fields of insn */
+	insn->addr = buf_rva + offset;
+	insn->offset = offset;
+	insn->size = size;
+	memcpy( insn->bytes, buf + offset, size );
+
+	return (size);
+}
+
+int x86_disasm_range( unsigned char *buf, unsigned long buf_rva, 
+		      unsigned int offset, unsigned int len,
+		      DISASM_CALLBACK func, void *arg ) {
+	x86_insn_t insn;
+	int buf_len, size, count = 0, bytes = 0;
+
+	/* buf_len is implied by the arguments */
+	buf_len = len + offset;
+
+	while ( bytes < len ) {
+		size = x86_disasm( buf, buf_len, buf_rva, offset + bytes, 
+				   &insn );
+		if ( size ) {
+			/* invoke callback if it exists */
+			if ( func ) {
+				(*func)( &insn, arg );
+			}
+			bytes += size;
+			count ++;
+		} else {
+			/* error */
+			bytes++;	/* try next byte */
+		}
+	}
+
+	return( count );
+}
+
+static inline int follow_insn_dest( x86_insn_t *insn ) {
+	if ( insn->type == insn_jmp || insn->type == insn_jcc ||
+	     insn->type == insn_call || insn->type == insn_callcc ) {
+		return(1);
+	}
+	return(0);
+}
+
+static inline int insn_doesnt_return( x86_insn_t *insn ) {
+	return( (insn->type == insn_jmp || insn->type == insn_return) ? 1: 0 );
+}
+
+static long internal_resolver( x86_op_t *op, x86_insn_t *insn ){
+	long next_addr = -1;
+	if ( op->type == op_absolute || op->type == op_offset ) {
+		next_addr = op->data.sdword;
+	} else if ( op->type == op_relative ){
+		/* add offset to current rva+size based on op size */
+		if ( op->datatype == op_byte ) {
+			next_addr = insn->addr + insn->size + op->data.sbyte;
+		} else if ( op->datatype == op_word ) {
+			next_addr = insn->addr + insn->size + op->data.sword;
+		} else if ( op->datatype == op_dword ) {
+			next_addr = insn->addr + insn->size + op->data.sdword;
+		}
+	}
+	return( next_addr );
+}
+
+int x86_disasm_forward( unsigned char *buf, unsigned int buf_len, 
+			unsigned long buf_rva, unsigned int offset, 
+			DISASM_CALLBACK func, void *arg,
+			DISASM_RESOLVER resolver ){
+	x86_insn_t insn;
+	x86_op_t *op;
+	long next_addr;
+	unsigned long next_offset;
+	int size, count = 0, bytes = 0, cont = 1;
+
+	while ( cont && bytes < buf_len ) {
+		size = x86_disasm( buf, buf_len, buf_rva, offset + bytes, 
+			   &insn );
+
+		if ( size ) {
+			/* invoke callback if it exists */
+			if ( func ) {
+				(*func)( &insn, arg );
+			}
+			bytes += size;
+			count ++;
+		} else {
+			/* error */
+			bytes++;	/* try next byte */
+		}
+
+		if ( follow_insn_dest(&insn) ) {
+			op = &insn.operands[0];
+			next_addr = -1;
+
+			/* if caller supplied a resolver, use it to determine
+			 * the address to disassemble */
+			if ( resolver ) {
+				next_addr = resolver(op, &insn);
+			} else {
+				next_addr = internal_resolver(op, &insn);
+			}
+			
+			if (next_addr != -1 ) {
+				next_offset = next_addr - buf_rva;
+				/* if offset is in this buffer... */
+				if ( next_offset >= 0 && 
+				     next_offset < buf_len ) {
+					/* go ahead and disassemble */
+					count += x86_disasm_forward( buf, 
+							    buf_len,
+							    buf_rva, 
+							    next_offset,
+							    func, arg,
+							    resolver );
+				} else  {
+					/* report unresolved address */
+					x86_report_error( report_disasm_bounds,
+						     (void *) next_addr );
+				}
+			}
+		} /* end follow_insn */
+
+		if ( insn_doesnt_return(&insn) ) {
+			/* stop disassembling */
+			cont = 0;
+		}
+	}
+	return( count );
+}
+
+#define PRINT_DISPLACEMENT\
+		if ( ea->disp ) {					\
+			if ( ea->disp_size == 1) { 	\
+				sprintf(str, "%d", ea->disp);		\
+			} else {					\
+				sprintf(str, "0x%X", ea->disp);		\
+			}						\
+			strncat( buf, str, len );			\
+			len -= strlen(str);				\
+		}
+
+static int format_expr( x86_ea_t *ea, char *buf, int len,
+		enum x86_asm_format format ) {
+	char str[MAX_OP_STRING];
+
+	if ( format == att_syntax ) {
+		PRINT_DISPLACEMENT
+		strncat( buf, "(", len );
+		len--;
+
+		if ( ea->base.name[0]) {
+			strncat( str, "%", len );
+			len--;
+			strncat( buf, ea->base.name, len );
+			len -= strlen(ea->base.name);
+		}
+		if ( ea->index.name[0]) {
+			strncat( buf, ",%", len );
+			len -= 2;
+			strncat( buf, ea->index.name, len );
+			len -= strlen(ea->index.name);
+			if ( ea->scale > 1 ) {
+				sprintf( str, ",%d", ea->scale );
+				strncat( buf, str, len );
+				len -= strlen(str);
+			}
+		}
+		/* handle the syntactic exception */
+		if ( ! ea->base.name[0] && 
+		     ! ea->index.name[0]   ) {
+			sprintf( str, ",%d", ea->scale );
+			strncat( buf, str, len );
+			len -= strlen(str);
+		}
+		strncat( buf, ")", len );
+		len--;
+	} else {
+		strncat( buf, "[", len );
+		len--;
+		if ( ea->base.name[0] ) {
+			strncat( buf, ea->base.name, len );
+			len -= strlen(ea->base.name);
+			if (  ea->index.name[0] || 
+			      (ea->disp && ! ea->disp_sign) ) {
+				strncat( buf, "+", len );
+				len--;
+			}
+		}
+		if ( ea->index.name[0] ) {
+			strncat( buf, ea->index.name, len );
+			len -= strlen(ea->index.name);
+			if ( ea->scale > 1 ) {
+				sprintf(str, "*%d", ea->scale);
+				strncat( buf, str, len );
+				len -= strlen(str);
+			}
+			if (  ea->disp && ! ea->disp_sign ) {
+				strncat( buf, "+", len );
+				len--;
+			}
+		}
+			
+		PRINT_DISPLACEMENT
+		strncat( buf, "]", len );
+		len--;
+	}
+
+	return( strlen(buf) );
+}
+
+static int format_seg( x86_op_t *op, char *buf, int len,
+		enum x86_asm_format format ) {
+	int total = 0;
+	char *reg = "";
+
+	if (! op || ! buf || ! len || ! op->flags) {
+		return(0);
+	}
+	if ( op->type != op_absolute && op->type != op_offset &&
+	     op->type != op_expression ){
+		return(0);
+	}
+	if (! (int) op->flags & 0x70 ) {
+		return(0);
+	}
+
+	if ( format == att_syntax ) {
+		strncat(buf, "%", len);
+		len--;
+		total++;
+	}
+	switch (op->flags & 0x70) {
+		case op_es_seg: reg = "es:"; break;
+		case op_cs_seg: reg = "cs:"; break;
+		case op_ss_seg: reg = "ss:"; break;
+		case op_ds_seg: reg = "ds:"; break;
+		case op_fs_seg: reg = "fs:"; break;
+		case op_gs_seg: reg = "gs:"; break;
+		default:
+			break;
+	}
+	strncat(buf, reg, len);
+	return( total + 3 ); /* return length of string */
+}
+
+int x86_format_operand( x86_op_t *op, x86_insn_t *insn, char *buf, int len, 
+		        enum x86_asm_format format ){
+	char str[MAX_OP_STRING];
+
+	if ( ! op || ! buf || len < 1 ) {
+		return(0);
+	}
+
+	memset(buf, 0, len);
+	switch( op->type ) {
+		case op_register:
+			if ( format == att_syntax ){
+				strncat(buf, "%", len);
+				len--;
+			}
+			strncat(buf, op->data.reg.name, len);
+			break;
+		case op_immediate:
+			if ( format == att_syntax ){
+				strncat(buf, "$", len);
+				len--;
+			}
+			if ( op->flags & op_signed ) {
+				if ( op->datatype == op_byte ) {
+					sprintf(str, "%d", op->data.sbyte );
+				} else if ( op->datatype == op_word ) {
+					sprintf(str, "%d", op->data.sword );
+				} else {
+					sprintf(str, "%d", op->data.sdword );
+				}
+			} else {
+				if ( op->datatype == op_byte ) {
+					sprintf(str, "0x%2X", op->data.byte );
+				} else if ( op->datatype == op_word ) {
+					sprintf(str, "0x%4X", op->data.word );
+				} else {
+					sprintf(str, "0x%8X", op->data.dword );
+				}
+			}
+			strncat( buf, str, len );
+			break;
+		case op_relative:
+			sprintf(str, "0x%08X", op->data.sdword + insn->addr );
+			strncat( buf, str, len );
+			break;
+		case op_absolute:
+			/* AT&T requires a '*' before absolute JMP/CALL ops */
+			if (insn->type == insn_jmp || insn->type == insn_call ){
+				strncat(buf, "*", len);
+				len --;
+			}
+			len -= format_seg( op, buf, len, format );
+			sprintf(str, "0x%X", op->data.sdword );
+			strncat( buf, str, len );
+			break;
+		case op_expression:
+			len -= format_seg( op, buf, len, format );
+			format_expr( &op->data.effective_addr, buf, len, 
+				     format );
+			break;
+		case op_offset:
+			if (insn->type == insn_jmp || insn->type == insn_call ){
+				strncat(buf, "*", len);
+				len --;
+			}
+			len -= format_seg( op, buf, len, format );
+			sprintf(str, "0x%X", op->data.sdword );
+			strncat( buf, str, len );
+			break;
+		case op_unused:
+			/* return 0-truncated buffer */
+			break;
+	}
+
+	return(strlen(buf));
+}
+
+#define is_imm_jmp(op)   (op.type == op_absolute   || \
+		          op.type == op_immediate  || \
+			  op.type == op_offset)
+#define is_memory_op(op) (op.type == op_absolute   || \
+		          op.type == op_expression || \
+			  op.type == op_offset)
+
+static int format_att_mnemonic( x86_insn_t *insn, char *buf, int len) {
+	int size = 0;
+	char *prefix = "", *suffix;
+
+	if (! insn || ! buf || ! len ) 
+		return(0);
+
+	memset(buf, 0, len);
+	/* do long jump/call prefix */
+	if ( insn->type == insn_jmp || insn->type == insn_call ) {
+		if ( is_imm_jmp(insn->operands[op_dest]) && 
+		    insn->operands[op_dest].datatype != op_byte ) {
+			prefix = "l";
+		}
+	} 
+	strncat( buf, prefix, len );
+	len -= strlen(prefix);
+
+	/* do mnemonic */
+	strncat( buf, insn->mnemonic, len );
+	len -= strlen(insn->mnemonic);
+
+	/* do suffixes for memory operands */
+	if ( is_memory_op(insn->operands[op_dest]) ){
+		size = x86_operand_size(&insn->operands[op_dest]);
+	} else if ( is_memory_op(insn->operands[op_dest]) ) {
+		size = x86_operand_size(&insn->operands[op_src]);
+	}
+
+	if ( size == 1 ) suffix = "b";
+	else if ( size == 2 ) suffix = "w";
+	else if ( size == 4 ) suffix = "l";
+	else if ( size == 8 ) suffix = "q";
+	else suffix = "";
+	
+	strncat( buf, suffix, len );
+	return(strlen(buf));
+}
+
+int x86_format_mnemonic(x86_insn_t *insn, char *buf, int len, 
+		        enum x86_asm_format format){
+	char str[MAX_OP_STRING];
+
+	memset(buf, 0, len);
+	strncat(buf, insn->prefix_string, len);
+	len -= strlen(insn->prefix_string);
+	if ( format == att_syntax ) {
+		format_att_mnemonic(insn, str, MAX_OP_STRING);
+		strncat(buf, str, len);
+		len -= strlen(str);
+	} else {
+		strncat(buf, insn->mnemonic, len);
+		len -= strlen(insn->mnemonic);
+	}
+
+	return( strlen(buf) );
+}
+
+int x86_format_insn( x86_insn_t *insn, char *buf, int len, 
+		     enum x86_asm_format format ){
+	char str[MAX_OP_STRING];
+	int i;
+
+	memset(buf, 0, len);
+	if ( format == intel_syntax ) {
+		/* INTEL STYLE: mnemonic dest, src, imm */
+		strncat(buf, insn->prefix_string, len);
+		len -= strlen(insn->prefix_string);
+		strncat(buf, insn->mnemonic, len);
+		len -= strlen(insn->mnemonic);
+		strncat(buf, "\t", len);
+		len--;
+
+		/* dest */
+		x86_format_operand(&insn->operands[op_dest], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+
+		/* src */
+		if ( insn->operands[op_src].type != op_unused ) {
+			strncat(buf, ", ", len);
+			len -= 2;
+		}
+		x86_format_operand(&insn->operands[op_src], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+
+		/* imm */
+		if ( insn->operands[op_imm].type != op_unused ) {
+			strncat(buf, ", ", len);
+			len -= 2;
+		}
+		x86_format_operand(&insn->operands[op_imm], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+	} else if ( format == att_syntax ) {
+		/* ATT STYLE: mnemonic src, dest, imm */
+		format_att_mnemonic(insn, str, MAX_OP_STRING);
+		strncat(buf, str, len);
+		len -= strlen(str);
+		strncat(buf, "\t", len);
+		len--;
+
+		/* src */
+		x86_format_operand(&insn->operands[op_src], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+
+		/* dest */
+		if ( insn->operands[op_src].type != op_unused && 
+		     insn->operands[op_dest].type != op_unused ) {
+			strncat(buf, ", ", len);
+			len -= 2;
+		}
+
+		x86_format_operand(&insn->operands[op_dest], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+
+		/* imm */
+		if ( insn->operands[op_imm].type != op_unused ) {
+			strncat(buf, ", ", len);
+			len -= 2;
+		}
+		x86_format_operand(&insn->operands[op_imm], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+	} else { /* default to native */
+		/* NATIVE style: RVA\tBYTES\tMNEMONIC\tOPERANDS */
+		/* print address */
+		sprintf( str, "%08X\t", insn->addr );
+		strncat(buf, str, len);
+		len -= strlen(str);
+
+		/* print bytes */
+		for ( i = 0; i < insn->size; i++ ) {
+			sprintf( str, "%02X ", insn->bytes[i] );
+			strncat(buf, str, len);
+			len -= strlen(str);
+		}
+
+		strncat( buf, "\t", len );
+		len--;
+
+		/* print mnemonic */
+		strncat(buf, insn->prefix_string, len);
+		len -= strlen(insn->prefix_string);
+		strncat(buf, insn->mnemonic, len);
+		len -= strlen(insn->mnemonic);
+		strncat(buf, "\t", len);
+		len--;
+
+		/* print operands */
+		/* dest */
+		x86_format_operand(&insn->operands[op_dest], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+		strncat(buf, "\t", len);
+		len--;
+
+		/* src */
+		x86_format_operand(&insn->operands[op_src], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+		strncat(buf, "\t", len);
+		len--;
+
+		/* imm */
+		x86_format_operand(&insn->operands[op_imm], insn, str, 
+				   MAX_OP_STRING, format);
+		strncat(buf, str, len);
+		len -= strlen(str);
+	}
+	return(strlen(buf));
+}
+
+x86_op_t * x86_get_operand( x86_insn_t *insn, enum x86_operand_id id ){
+	if ( insn ) return( &insn->operands[(int)id] );
+	return( NULL );
+}
+
+x86_op_t * x86_get_dest_operand( x86_insn_t *insn ) {
+	if ( insn ) return( &insn->operands[(int)op_dest] );
+	return( NULL );
+}
+
+x86_op_t * x86_get_src_operand( x86_insn_t *insn ) {
+	if ( insn ) return( &insn->operands[(int)op_src] );
+	return( NULL );
+}
+
+x86_op_t * x86_get_imm_operand( x86_insn_t *insn ) {
+	if ( insn ) return( &insn->operands[(int)op_imm] );
+	return( NULL );
+}
+
+int x86_operand_size( x86_op_t *op ) {
+	switch (op->datatype ) {
+		case op_byte: return 1;
+		case op_word: return 2;
+		case op_dword: return 4;
+		case op_qword: return 8;
+		case op_dqword: return 16;
+		case op_sreal: return 4;
+		case op_double: return 8;
+		case op_extreal: return 10;
+		case op_bcd: return 10;
+		case op_simd: return 16;
+		case op_fpuenv: return 28;
+	}
+	return(4);	/* default size */
+}
+
+void x86_set_insn_addr( x86_insn_t *insn, unsigned long addr ) {
+	if ( insn ) insn->addr = addr; 
+}
+
+void x86_set_insn_offset( x86_insn_t *insn, unsigned int offset ){
+	if ( insn ) insn->offset = offset; 
+}
+
+void x86_set_insn_function( x86_insn_t *insn, void * func ){
+	if ( insn ) insn->function = func; 
+}
+
+void x86_set_insn_block( x86_insn_t *insn, void * block ){
+	if ( insn ) insn->block = block; 
+}
+
+void x86_tag_insn( x86_insn_t *insn ){
+	if ( insn ) insn->tag = (void *) 1; 
+}
+
+void x86_untag_insn( x86_insn_t *insn ){
+	if ( insn ) insn->tag = (void *) 0; 
+}
+
+int x86_insn_is_tagged( x86_insn_t *insn ){
+	return( insn && insn->tag ? 1 : 0 );
+}
+
+/* accessor functions for the private 'ext_arch' structure */
+int x86_endian(void) { return(ext_arch.endian); }
+int x86_addr_size(void) { return(ext_arch.sz_addr); }
+int x86_op_size(void) { return(ext_arch.sz_oper); }
+int x86_word_size(void) { return(ext_arch.sz_word); }
+int x86_max_inst_size(void) { return(ext_arch.sz_inst); }
+int x86_sp_reg(void) { return(ext_arch.SP); }
+int x86_fp_reg(void) { return(ext_arch.FP); }
+int x86_ip_reg(void) { return(ext_arch.IP); }
+
+
+/* OLD API
+ * ------------------------------------------------------------------------ */
+static enum x86_asm_format assembler_format = native_syntax;
+/* From here down are the routines in the old legacy api -- used in 
+ * libdisasm .16 and under. Obviously big fans of the library will want 
+ * these to stick around, even though the API sucks like a jet intake */
+
+static void fix_op( long * op, unsigned int type ) {
+	struct addr_exp *e;
+	struct EXPRLIST expl;
+
+	if ( OP_TYPE(type) == OP_REG ) {
+		*op = (long) vm_get_reg_name(*op);
+	} else if ( OP_TYPE(type) == OP_EXPR ) {
+		e = calloc( sizeof(struct addr_exp), 1 );
+		addrexp_get(*op, &expl);
+		e->scale = expl.scale;
+		e->index = expl.index;
+		e->base = expl.base;
+		e->disp = expl.disp;
+		e->flags = expl.flags;
+		e->used = expl.used;
+		*op = (long) e;
+	}
+	return;
+}
+
+int x86old_disasm_addr_raw(char *buf, int buf_len, struct code *c){
+	int size;
+	unsigned char disasm_buf[32] = {0};
+
+	/* copy binary code to temporary buffer */
+	memcpy( disasm_buf, buf, ( buf_len > cpu_inst_size() ) ? 
+			               cpu_inst_size() : buf_len     );
+
+	/* actually do the disassembly  -- note we do not zero 'c' */
+	size = disasm_addr(disasm_buf, 0, c, 0);
+
+	/* check if we overran the end of the buffer */
+	if ( size > buf_len ) {
+		return(0);
+	}
+
+	fix_op( &c->dest, c->destType );
+	fix_op( &c->src, c->srcType );
+	fix_op( &c->aux, c->auxType );
+
+	return(size);
+}
+
+/* format an address expression */
+static int fmt_expr_op(int operand, int flags, char *buf, int len)
 {
 	if (!operand && flags != ADDREXP_REG) {
 		buf[0] = '\0';
@@ -35,9 +917,9 @@ int fmt_expr_op(int operand, int flags, char *buf, int len)
 	switch (flags) {
 	case ADDREXP_REG:
 		if (assembler_format == ATT_SYNTAX)
-			snprintf(buf, len, "%%%s", get_reg_name(operand));
+			snprintf(buf, len, "%%%s", vm_get_reg_name(operand));
 		else
-			strncpy(buf, get_reg_name(operand), len);
+			strncpy(buf, vm_get_reg_name(operand), len);
 		break;
 	case ADDREXP_WORD:
 		if (operand)
@@ -60,7 +942,7 @@ int fmt_expr_op(int operand, int flags, char *buf, int len)
 	return (strlen(buf));
 }
 
-int sprint_addrexp(char *str, int len, struct addr_exp *e)
+int x86_old_sprint_addexp(char *str, int len, struct addr_exp *e)
 {
 	char scale[32] = { 0 }, index[32] = {0}, 
 			base[32] = {0}, disp[32] = {0};
@@ -115,13 +997,13 @@ int sprint_addrexp(char *str, int len, struct addr_exp *e)
 	case INTEL_SYNTAX:
 	case NATIVE_SYNTAX:
 	default:
+		snprintf(str, len, "[%s", base);
 		if (scale[0] && index[0])
 			snprintf(idx, 16, "(%s*%s)", scale, index);
 		else if (index[0])
 			snprintf(idx, 16, "%s", index);
 
 		if (base[0]) {
-			snprintf(str, len, "[%s", base);
 			if (idx[0]) {
 				strncat(str, "+", len - strlen(str));
 				strncat(str, idx, len - strlen(str));
@@ -130,32 +1012,32 @@ int sprint_addrexp(char *str, int len, struct addr_exp *e)
 				snprintf(tmp, 32, "%c%s", sd, disp);
 				strncat(str, tmp, len - strlen(str));
 			}
-			strncat(str, "]", len - strlen(str));
 		} else if (idx[0]) {
 			snprintf(str, len, "%s%c%s", idx, sd, disp);
 		} else {
 			if ( sd == '-' ) strncat( str, "-", len - strlen(str) );
 			strncat(str, disp, len - strlen(str));
 		}
+		strncat(str, "]", len - strlen(str));
 
 	}
 	return (strlen(str));
 }
 
 
-int sprint_seg(char *str, int len, int seg)
+static int sprint_seg(char *str, int len, int seg)
 {
 	seg = seg >> 16;
 	if (assembler_format == ATT_SYNTAX)
 		snprintf(str, len, "%%%s:",
-			 get_reg_name(ext_arch.reg_seg + seg - 1));
+			 vm_get_reg_name(ext_arch.reg_seg + seg - 1));
 	else
 		snprintf(str, len, "%s:",
-			 get_reg_name(ext_arch.reg_seg + seg - 1));
+			 vm_get_reg_name(ext_arch.reg_seg + seg - 1));
 	return (strlen(str));
 }
 
-int sprint_op(char *str, int len, int op, int type)
+static int sprint_op(char *str, int len, int op, int type)
 {
 	int diff, seg;
 	
@@ -186,7 +1068,7 @@ int sprint_op(char *str, int len, int op, int type)
 				str += diff;
 				len -= diff;
 			}
-			snprintf(str, len, "%s", get_reg_name(op));
+			snprintf(str, len, "%s", vm_get_reg_name(op));
 			break;
 		case OP_EXPR:
 			if (assembler_format != ATT_SYNTAX && seg) {
@@ -194,7 +1076,8 @@ int sprint_op(char *str, int len, int op, int type)
 				str += diff;
 				len -= diff;
 			}
-			sprint_addrexp(str, len, &exp);
+			x86_old_sprint_addexp(str, len, 
+					(struct addr_exp *)op );
 			break;
 		case OP_REL:
 			if (op < 0) {
@@ -238,84 +1121,39 @@ int sprint_op(char *str, int len, int op, int type)
 	return (strlen(str));
 }
 
-int disassemble_address(char *buf, int buf_len, struct instr *i)
-{
+int x86_old_disasm_addr(char *buf, int buf_len, struct x86_old_instr *i) {
 	int size;
 	struct code c = { 0 };
 	unsigned char disasm_buf[32] = {0};
 
 	/* clear addr_exp */
-	memset(&exp, 0, sizeof (struct addr_exp));
-	memset(i, 0, sizeof (struct instr));
+	memset(i, 0, sizeof (struct x86_old_instr));
+	memcpy( disasm_buf, buf, ( buf_len > cpu_inst_size() ) ?
+			cpu_inst_size() : buf_len     );
 
-	/* copy binary code to temporary buffer */
-	memcpy( disasm_buf, buf, ( buf_len > cpu_inst_size() ) ? 
-			               cpu_inst_size() : buf_len     );
-
-	/* actually do the disassembly */
 	size = disasm_addr(disasm_buf, 0, &c, 0);
-
-	/* check if we overran the end of the buffer */
-	if ( size > buf_len ) {
-		return(0);
+	if ( size ) {
+		fix_op( &c.dest, c.destType );
+		fix_op( &c.src, c.srcType );
+		fix_op( &c.aux, c.auxType );
+		strncpy(i->mnemonic, c.mnemonic, 16);
+		sprint_op(i->dest, 32, c.dest, c.destType);
+		sprint_op(i->src, 32, c.src, c.srcType);
+		sprint_op(i->aux, 32, c.aux, c.auxType);
+		i->mnemType = c.mnemType;
+		i->destType = c.destType;
+		i->srcType = c.srcType;
+		i->auxType = c.auxType;
+		i->size = size;
 	}
-	/* copy bastard 'native' code struct to a more general instr struct */
-	strncpy(i->mnemonic, c.mnemonic, 16);
-	sprint_op(i->dest, 32, c.dest, c.destType);
-	sprint_op(i->src, 32, c.src, c.srcType);
-	sprint_op(i->aux, 32, c.aux, c.auxType);
-	i->mnemType = c.mnemType;
-	i->destType = c.destType;
-	i->srcType = c.srcType;
-	i->auxType = c.auxType;
-	i->size = size;
 	return (size);
 }
 
-static void fix_op( long * op, unsigned int type ) {
-	struct addr_exp *e;
-	if ( OP_TYPE(type) == OP_REG ) {
-		*op = (long) get_reg_name(*op);
-	} else if ( OP_TYPE(type) == OP_EXPR ) {
-		e = calloc( sizeof(struct addr_exp), 1 );
-		memcpy( e, &exp, sizeof(struct addr_exp) );
-		*op = (long) e;
-	}
-	return;
-}
-
-int disassemble_address_raw(char *buf, int buf_len, struct code *c){
-	int size;
-	unsigned char disasm_buf[32] = {0};
-
-	/* clear addr_exp */
-	memset(&exp, 0, sizeof (struct addr_exp));
-
-	/* copy binary code to temporary buffer */
-	memcpy( disasm_buf, buf, ( buf_len > cpu_inst_size() ) ? 
-			               cpu_inst_size() : buf_len     );
-
-	/* actually do the disassembly  -- note we do not zero 'c' */
-	size = disasm_addr(disasm_buf, 0, c, 0);
-
-	/* check if we overran the end of the buffer */
-	if ( size > buf_len ) {
-		return(0);
-	}
-
-	fix_op( &c->dest, c->destType );
-	fix_op( &c->src, c->srcType );
-	fix_op( &c->aux, c->auxType );
-
-	return(size);
-}
-
-int sprint_address(char *str, int len, char *buf, int buf_len)
-{
-	struct instr i;
+int x86_old_sprint_addr(char *str, int len, char *buf, int buf_len) {
+	struct x86_old_instr i;
 	int size;
 
-	size = disassemble_address(buf, buf_len, &i);
+	size = x86_old_disasm_addr(buf, buf_len, &i);
 	if (! size) {
 		snprintf(str, len, "invalid instruction: %02X\n", *buf);
 		return(0);
@@ -328,35 +1166,8 @@ int sprint_address(char *str, int len, char *buf, int buf_len)
 	return (size);
 }
 
-int vm_add_regtbl_entry(int index, char *name, int size, int type)
-{
-	if (index >= ext_arch.sz_regtable)
-		return (0);
-	ext_arch.reg_table[index].size = size;
-	ext_arch.reg_table[index].type = type;
-	strncpy(ext_arch.reg_table[index].mnemonic, name, 8);
-	return (1);
+int x86_old_init(int options, int format){
+	assembler_format = format;
+	return( x86_init(options, NULL) );
 }
 
-int addrexp_new(int scale, int index, int base, int disp, int flags)
-{
-	exp.scale = scale;
-	exp.index = index;
-	exp.base = base;
-	exp.disp = disp;
-	exp.flags = flags;
-
-	return (1); /* id */
-}
-
-
-int bdb_index_find(int a, void *b, void *c)
-{
-	printf("you shouldn't be using this outside of the bastard!!!\n");
-	return (0);
-}
-int bdb_index_next(int a, void *b)
-{
-	printf("you shouldn't be using this outside of the bastard!!!\n");
-	return (0);
-}

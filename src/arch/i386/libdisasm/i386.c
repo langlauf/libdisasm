@@ -5,13 +5,20 @@
 #include "i386_opcode.h"
 #include "i386.opcode.map"
 
+/* platform independent data types */
+#ifdef _MSC_VER
+	typedef __int64				qword;
+#else
+	typedef long long			qword;
+#endif
 
 struct addr_exp expr;		/* a very naughty global for storing the expression */
-struct EXT__ARCH *settings;	/* might come in handy */
+struct EXT__ARCH *settings = {0};	/* might come in handy */
 int mode_16 = 0;			/* 16 or 32-bit addressing? */
 
 
 /* sys_init routine : used to set internal disassembler values */
+static void regtable_init(void);
 void ext_arch_init(void *param)
 {
 	settings = (struct EXT__ARCH *) param;
@@ -51,8 +58,7 @@ void ext_arch_init(void *param)
 }
 
 /* Register Table Setup */
-void regtable_init(void)
-{
+static void regtable_init(void) {
 	int x;
 
 	settings->sz_regtable = 86;
@@ -102,6 +108,7 @@ void regtable_init(void)
 
 void ext_arch_cleanup(void)
 {
+	if (! settings )	return;
 	if (settings->reg_table)
 		free(settings->reg_table);
 	if (settings->sz_regtable)
@@ -114,21 +121,21 @@ void ext_arch_cleanup(void)
 /* ------------ Disassembly Routines ----------------------------------- */
 /* Here There Be Awful Code ;P */
 
-int op_get_signsized(long *op, BYTE * buf, int size)
+static int op_get_signsized(long *op, BYTE * buf, int size)
 {
 	/* Copy 'size' bytes from *buf to *op
 	 * return number of bytes copied */
 	/* TODO: call bastard functions for endian-independence */
 	switch (size) {
 	case 1:		/* BYTE */
-		*op = (int) *((char *) &buf[0]);
+		*op = (long) *((char *) &buf[0]);
 		break;
 	case 2:		/* WORD */
 		*op = (long) *((signed short *) &buf[0]);
 		break;
 	case 6:
 	case 8:		/* QWORD */
-		*op = (long) *((signed long long *) &buf[0]);
+		*op = (long) *((qword *) &buf[0]);
 		break;
 	case 4:		/* DWORD */
 	default:
@@ -138,21 +145,21 @@ int op_get_signsized(long *op, BYTE * buf, int size)
 	return (size);
 }
 
-int op_get_sized(unsigned long *op, BYTE * buf, int size)
+static int op_get_sized(unsigned long *op, BYTE * buf, int size)
 {
 	/* Copy 'size' bytes from *buf to *op
 	 * return number of bytes copied */
 	/* TODO: call bastard functions for endian-independence */
 	switch (size) {
 	case 1:		/* BYTE */
-		*op = (unsigned int) *((unsigned char *) &buf[0]);
+		*op = (unsigned long) *((unsigned char *) &buf[0]);
 		break;
 	case 2:		/* WORD */
-		*op = (unsigned int) *((unsigned short *) &buf[0]);
+		*op = (unsigned long) *((unsigned short *) &buf[0]);
 		break;
 	case 6:
 	case 8:		/* QWORD */
-		*op = (unsigned long) *((unsigned long long *) &buf[0]);
+		*op = (unsigned long) *((qword *) &buf[0]);
 		break;
 	case 4:		/* DWORD */
 	default:
@@ -175,7 +182,7 @@ int byte_decode(BYTE b, struct modRM_byte *modrm)
 }
 
 
-int sib_decode(BYTE * b, int mod)
+static int sib_decode(BYTE * b, int mod)
 {
 	/* set Address Expression fields (scale, index, base, disp) 
 	 * according to the contents of the SIB byte.
@@ -219,7 +226,7 @@ int sib_decode(BYTE * b, int mod)
 
 
 /* handy wrapper for modrm 16 displacement */
-int modrm_getop_16( struct addr_exp *expr, char *buf, int mod ) {
+static int modrm_getop_16( struct addr_exp *expr, char *buf, int mod ) {
 	if ( mod == MOD16_MOD_DISP8 ) {
 		op_get_signsized((long*)&(expr->disp), buf, sizeof(char));
 		expr->flags |= ADDREXP_BYTE << ADDEXP_DISP_OFFSET;
@@ -232,7 +239,7 @@ int modrm_getop_16( struct addr_exp *expr, char *buf, int mod ) {
 	return(0);	/* do disp for this insn */
 }
 
-int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
+static int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
 		int size, int flags, struct modRM_byte *modrm ) {
 	/* 16-bit mode: hackish, but not as hackish as 32-bit mode ;) */
 	int count = 1;		/* # of bytes decoded [1 for modR/M byte] */
@@ -240,7 +247,7 @@ int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
 	if (flags != MODRM_EA || modrm->mod == MODRM_MOD_NOEA) {
 		*op_flags &= 0xFFFFF0FF;
 		*op_flags |= OP_REG;
-		if ( modrm->mod == MODRM_MOD_NOEA ) {
+		if ( flags != MODRM_reg && modrm->mod == MODRM_MOD_NOEA ) {
 			*op = modrm->rm + reg_type;
 			return(1);
 		}
@@ -304,6 +311,7 @@ int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
 			count += modrm_getop_16( &expr, &b[1], modrm->mod );
 			break;
 	}
+	*op_flags |= OP_EXPR;
 
 	if (expr.flags) {
 		*op = addrexp_new(expr.scale, expr.index, expr.base, expr.disp, 
@@ -319,7 +327,7 @@ int modrm_decode16(BYTE * b, long *op, int *op_flags, int reg_type,
     Don't forget to flag string (*SB, *SW) instructions
 */
 /* returns number of bytes it decoded */
-int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
+static int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
 		int size, int flags) {
 	/* create address expression and/or fill operand based on value of
 	 * ModR/M byte. Calls sib_decode as appropriate.
@@ -348,7 +356,7 @@ int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
 		*op = modrm.reg + reg_type;
 		*op_flags &= 0xFFFFF0FF;
 		*op_flags |= OP_REG;
-		if ( modrm.mod == MODRM_MOD_NOEA )
+		if ( flags != MODRM_reg && modrm.mod == MODRM_MOD_NOEA )
 			return(1);
 		/* ELSE this is the 'reg' field : assign a register */
 		return( 0 ); 
@@ -415,7 +423,7 @@ int modrm_decode(BYTE * b, long *op, int *op_flags, int reg_type,
 }
 
 
-void apply_seg(unsigned int prefix, unsigned int *dest_flg, 
+static void apply_seg(unsigned int prefix, unsigned int *dest_flg, 
 			unsigned long *dest, struct addr_exp *expr)
 {
 	unsigned int seg = prefix & 0xF0000000;
@@ -454,7 +462,7 @@ void apply_seg(unsigned int prefix, unsigned int *dest_flg,
 
 static unsigned int get_opcode_size_flag(int op_type, int op_size, 
 						int addr_size, int *size){
-	unsigned int op_size_flag = 0;
+	unsigned int op_size_flag = OP_WORD;
 		/* ++ Do Operand Type ++ */
 		switch (op_type) {
 		/* This sets the operand Size based on the Intel Opcode Map
@@ -548,7 +556,7 @@ static unsigned int get_opcode_size_flag(int op_type, int op_size,
 
 }
 
-int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
+static int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 {
 	/* Decode the operands of an instruction; calls modrm_decode as
 	 * necessary, gets displacemnets and immeidate values, and sets the
@@ -645,19 +653,22 @@ int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 		*dest_flg[x] |= op_notes;
 
 
-		/* ++ Handle operands hard-coded in the opcode [e.g. "dec eax"] */
+		/* Get size of operand */
+		op_size_flag = get_opcode_size_flag(op_type, op_size, addr_size,
+								&size);
+
+		/* ++ Handle operands hard-coded in the opcode [e.g. 0x4C] */
 		if (operands[x] || op_flags[x] & OP_REG) {
 			/* operands[x] contains either an Immediate Value 
-			   or a Register ID */
+			   or a Register ID. This is hard-coded, so
+			   there is no addressing method. */
+			*dest_flg[x] |= op_size_flag;
 			*dest_buf[x] = operands[x];
 			continue;	/* next operand */
 		}
 
-
-		op_size_flag = get_opcode_size_flag(op_type, op_size, addr_size,
-								&size);
-		/* override default register set based on size of Operand Type */
-		/* this allows mixing of 8, 16, and 32 bit regs in instruction */
+		/* override default register set based on Operand Type */
+		/* this allows mixing of 8, 16, and 32 bit regs in insn */
 		if (size == 1)
 			g_regs = REG_BYTE_OFFSET;
 		else if (size == 2)
@@ -789,8 +800,8 @@ int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 			op_get_sized(dest_buf[x], buf + bytes, size);
 			bytes += size;
 			break;
-		case ADDRMETH_O:	/* No ModR/M;operand is word/dword offset */
-			/* NOTE: these are actually RVA's and not offsets to IP!!! */
+		case ADDRMETH_O:	/* No ModR/M; op is word/dword offset */
+			/* NOTE: these are actually RVAs not offsets to seg!! */
 			/* note bene: 'O' ADDR_METH uses addr_size  to
 			   determine operand size */
 			op_size_flag = get_opcode_size_flag(op_type, addr_size, 
@@ -815,7 +826,7 @@ int instr_decode(instr * t, BYTE * buf, struct code *c, DWORD rva)
 
 		case 0:	/* Operand is not used */
 		default:
-			/* ignore -- operand not used in this intruction */
+			/* ignore -- operand not used in this insn */
 			*dest_flg[x] = 0;
 			break;
 		}

@@ -1,7 +1,8 @@
-/* A quick, dirty, stupid disassembler to test the engine */
+/* A quick, dirty, stupid disassembler to test libdisasm */
 /* Compile with  `gcc -I. -O3 -L. -ldisasm quikdis.c -o quikdis` */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -9,85 +10,240 @@
 #include <elf.h>
 #include "libdis.h"
 
+void quikdis_reporter( enum x86_report_codes code, void *arg ) {
+	char * str;
+
+	/* here would could examine the error and do something useful;
+	 * instead we just print that an error occurred */
+	switch ( code ) {
+		case report_disasm_bounds:
+			str = "Attempt to disassemble RVA beyond end of buffer";
+			break;
+		case report_insn_bounds:
+			str = "Instruction at RVA extends beyond buffer";
+			break;
+		case report_invalid_insn:
+			str = "Invalid opcode at RVA";
+			break;
+		case report_unknown:
+			str = "Unknown Error";
+			break;
+	}
+
+	fprintf(stderr, "QUIKDIS: ERROR \'%s:\' %X\n", str, arg);
+}
+
+void quikdis_att_print( x86_insn_t *insn, void *arg ) {
+	char line[256];
+	x86_format_insn(insn, line, 256, att_syntax);
+	printf( "%s\n", line);
+}
+
+void quikdis_native_print( x86_insn_t *insn, void *arg ) {
+	char line[256];
+	x86_format_insn(insn, line, 256, native_syntax);
+	printf( "%s\n", line);
+}
+
+void quikdis_manual_print( x86_insn_t *insn, void *arg ) {
+	char buf[MAX_OP_STRING];
+	int i;
+
+	printf("%08X", insn->addr );
+	for ( i = 0; i < 10; i++ ) {
+		if ( i < insn->size ) {
+			printf(" %02X", insn->bytes[i]);
+		} else {
+			printf("   ");
+		}
+	}
+	
+	x86_format_mnemonic( insn, buf, MAX_OP_STRING, att_syntax );
+	printf( "\t%s\t", buf );
+
+	if ( insn->operands[op_src].type != op_unused ) {
+		x86_format_operand( &insn->operands[op_src], insn, buf, 
+			       MAX_OP_STRING, att_syntax );
+		/* if src is present, so is dest */
+		printf("%s, ", buf);
+	}
+	if ( insn->operands[op_dest].type != op_unused ) {
+		x86_format_operand( &insn->operands[op_dest], insn, buf, 
+			       MAX_OP_STRING, att_syntax );
+		printf("%s", buf);
+	}
+	if ( insn->operands[op_imm].type != op_unused ) {
+		x86_format_operand( &insn->operands[op_imm], insn, buf, 
+			       MAX_OP_STRING, att_syntax );
+		/* if src is present, so is dest */
+		printf(", %s", buf);
+	}
+	printf("\n");
+}
+
+/* RESOLVER List support */
+struct RVALIST {
+	unsigned long rva;
+	struct RVALIST *next;
+} rva_list_head = {0};
+
+static int rva_list_add( unsigned long rva ) {
+	struct RVALIST *rl, *rl_new;
+
+	for ( rl = &rva_list_head; rl; rl = rl->next ) {
+		/* first rva is always 0 -- the list head */
+		if ( rva > rl->rva ) {
+			if ( ! rl->next || rva < rl->next->rva ) {
+				/* we use exit() to free this, btw */
+				rl_new = calloc(sizeof(struct RVALIST), 1);
+				rl_new->rva = rva;
+				rl_new->next = rl->next;
+				rl->next = rl_new;
+				return(1);
+			}
+		} else if ( rva == rl->rva ) {
+			return(0);	/* already seen this rva */
+		}
+	}
+	return(0);
+}
+
+/* In the resolver, we keep a list of RVAs we have seen and weed these out.
+ * Needless to say, this is a simple example with poor performance. */
+
+long quikdis_resolver( x86_op_t *op, x86_insn_t *insn ) {
+	long retval = -1;
+
+	if (! rva_list_add(insn->addr) ) {
+		/* we have seen this one already; return -1 */
+		return(-1);
+	}
+
+	/* this part is a flat ripoff of internal_resolver in libdis.c */
+	/* we don't do any register or stack resolving */
+	if ( op->type == op_absolute || op->type == op_offset ) {
+		retval = op->data.sdword; /* no need to cast the void* */
+	} else if (op->type == op_relative ){
+		if ( op->datatype == op_byte ) {
+			retval = insn->addr + insn->size + op->data.sbyte;
+		} else if ( op->datatype == op_word ) {
+			retval = insn->addr + insn->size + op->data.sword;
+		} else if ( op->datatype == op_dword ) {
+			retval = insn->addr + insn->size + op->data.sdword;
+		}
+	}
+
+	return( retval );
+}
+
 int main(int argc, char *argv[])
 {
-	int fTarget, entry, x, i, n, size, buf_max;
-	unsigned char *buf;
 	void *image;
-	off_t curr_pos;
-	Elf32_Ehdr *TargetHeader;
-	Elf32_Phdr *ProgramHeader;
-	struct instr curr_inst;
-	struct stat tmpStat;
+	int target_fd;
+	struct stat sb;
+	unsigned long buf_rva;
+	unsigned char *buf = NULL, line[256];
+	unsigned int entry, i, size, buf_len;
+	Elf32_Ehdr *elf_hdr;
+	Elf32_Phdr *prog_hdr;
+	x86_insn_t insn;	/* used for intel/loop disassembly */
 
 
 
-	if (argc < 2) {
+	if (argc != 2) {
 		printf("Usage: %s filename\n", argv[0]);
 		return 1;
 	}
 
-	disassemble_init(0, INTEL_SYNTAX);
-	/* read ELF header */
-	fTarget = open(argv[1], O_RDONLY);
-	fstat(fTarget, &tmpStat);
-	image = mmap(0, tmpStat.st_size, PROT_READ, MAP_SHARED, fTarget, 0);
+	/* initialize libdisasm */
+	x86_init(opt_none, quikdis_reporter);
+
+	/* load target */
+	target_fd = open(argv[1], O_RDONLY);
+	fstat(target_fd, &sb);
+	image = mmap(0, sb.st_size, PROT_READ, MAP_SHARED, target_fd, 0);
 	if ((int) image < 1)
 		return (-1);
-	close(fTarget);
-	printf("File name: %s\n", argv[1]);
-	TargetHeader = image;
+	close(target_fd);
+	printf("Target File Name: %s\n", argv[1]);
 
-	/* read program header table */
-	for (x = 0; x < TargetHeader->e_phnum; x++) {
-		ProgramHeader =
-		    image + TargetHeader->e_phoff +
-		    (x * TargetHeader->e_phentsize);
+	/* read ELF header */
+	elf_hdr = image;
+
+	/* iterate through program header table entries */
+	for (i = 0; i < elf_hdr->e_phnum; i++) {
+		prog_hdr = image + elf_hdr->e_phoff +
+		           (i * elf_hdr->e_phentsize);
+
 		/* IF entry point is in this section */
-		if (TargetHeader->e_entry >= ProgramHeader->p_vaddr &&
-		    TargetHeader->e_entry <=
-		    (ProgramHeader->p_vaddr + ProgramHeader->p_filesz)) {
+		if (elf_hdr->e_entry >= prog_hdr->p_vaddr &&
+		    elf_hdr->e_entry <=
+		    (prog_hdr->p_vaddr + prog_hdr->p_filesz)) {
+
 			/* resolve entry point RVA to a file offset */
-			entry = TargetHeader->e_entry -
-			    (ProgramHeader->p_vaddr - ProgramHeader->p_offset);
-			printf
-			    ("\tDisassembling from entry point at offset %X\n",
-			     entry);
+			entry = elf_hdr->e_entry -
+			    (prog_hdr->p_vaddr - prog_hdr->p_offset);
 
 			/* use entire program segment as buffer */
-			i = 0;
-			buf = image + entry;
-			buf_max = ProgramHeader->p_filesz - entry;
-			while (i < buf_max) {
-				memset(&curr_inst, 0, sizeof (struct code));
-				printf("%X\t", TargetHeader->e_entry + i);
-				size = disassemble_address(buf + i, buf_max - i,
-						               &curr_inst);
-				if (size) {
-					for (n = 0; n < 12; n++) {
-						if (n < size)
-							printf("%02X ",
-							       buf[i + n]);
-						else
-							printf("   ");
-					}
-					printf("%s", curr_inst.mnemonic);
-					if (curr_inst.dest[0] != 0)
-						printf("\t%s", curr_inst.dest);
-					if (curr_inst.src[0] != 0)
-						printf(", %s", curr_inst.src);
-					if (curr_inst.aux[0] != 0)
-						printf(", %s", curr_inst.aux);
-					printf("\n");
-					i += size;
-				} else {
-					printf("invalid opcode %02X\n", buf[i]);
-					i++;
-				}
-			}
+			buf = image + prog_hdr->p_offset;
+			buf_len = prog_hdr->p_filesz;
+			buf_rva = prog_hdr->p_vaddr;
+
+			break;	/* found what we need, now terminate */
 		}
 	}
-	munmap(image, tmpStat.st_size);
-	disassemble_cleanup();
+
+	if ( buf ) {
+
+		/* ------------------------------------------- */
+		/* Disassembly using x86_disasm_range() */
+		printf("\n\n\n");
+		printf("QUICKDIS Disassembly of .text: AT&T syntax\n");
+		x86_disasm_range( buf, buf_rva, 0, buf_len, 
+				  quikdis_att_print, NULL );
+
+
+		/* ------------------------------------------- */
+		/* Disassembly using x86_disasm in a loop */
+		printf("\n\n\n");
+		printf("QUICKDIS Disassembly of .text: Intel syntax\n");
+		for ( i = 0; i < buf_len; ) {
+			size = x86_disasm( buf, buf_len, buf_rva, i, &insn );
+			if ( size ) {
+				x86_format_insn(&insn, line, 256, intel_syntax);
+				printf("%s\n", line);
+				i += size;
+			} else {
+				printf("invalid opcode %02X\n", buf[i]);
+				i++;
+			}
+		}
+
+
+
+		/* ------------------------------------------- */
+		/* Disassembly using x86_disasm_forward */
+		printf("\n\n\n");
+		printf("QUICKDIS Disassembly following entry point\n");
+		x86_disasm_forward( buf, buf_len, buf_rva, entry, 
+				    quikdis_native_print, NULL,
+				    quikdis_resolver );
+
+
+
+		/* ------------------------------------------- */
+		/* Disassembly using x86_disasm_range and manual formatting */
+		printf("\n\n\n");
+		printf("QUICKDIS Disassembly of .text: Manual AT&T syntax\n");
+		x86_disasm_range( buf, buf_rva, 0, buf_len, 
+				  quikdis_manual_print, NULL );
+
+	}
+
+	/* shut down disassembler */
+	x86_cleanup();
+
+	/* close everything */
+	munmap(image, sb.st_size);
 	return 0;
 }
