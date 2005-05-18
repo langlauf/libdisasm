@@ -10,8 +10,6 @@
               [-h|-?|--help]
               [-v|--version]
 */
-/* Compile with  `gcc -I. -O3 libdisasm.a x86dis.c -o x86dis` */
-
 
 #include <errno.h>
 #include <fcntl.h>
@@ -23,14 +21,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "libdis.h"
+#include <libdis.h>
 
 
-#define X86DIS_VERSION 		0.20
-#define BASTARD_URL 		"bastard.sourceforge.net"
-#define STDIN_PAGE_SIZE 	524288	/* 512 K ... make an option? */
-
-
+#define LIBDISASM_URL 		"http://bastard.sourceforge.net"
+#define STDIN_PAGE_SIZE 	524288	/* 512 K */
 
 
 enum dis_req_type { req_addr = 1, req_range, req_entry };
@@ -47,7 +42,7 @@ static struct DIS_INFO {
 	FILE *in, *out, *err;
 	/* size of input file */
 	unsigned long size;
-	/* flag for occurence of entry flag */
+	/* flag for --entry option */
 	int entry;
 	/* pagesize for buffering STDIN */
 	unsigned long pagesize;
@@ -152,10 +147,10 @@ long x86dis_resolver( x86_op_t *op, x86_insn_t *insn ) {
 	/* we don't do any register or stack resolving */
 	if ( op->type == op_absolute || op->type == op_offset ) {
 		retval = op->data.sdword; /* no need to cast the void* */
-	} else if (op->type == op_relative ){
-		if ( op->datatype == op_byte ) {
-			retval = insn->addr + insn->size + op->data.sbyte;
-		} else if ( op->datatype == op_word ) {
+	} else if (op->type == op_relative_near ){
+		retval = insn->addr + insn->size + op->data.sbyte;
+	} else if (op->type == op_relative_far ){
+		if ( op->datatype == op_word ) {
 			retval = insn->addr + insn->size + op->data.sword;
 		} else if ( op->datatype == op_dword ) {
 			retval = insn->addr + insn->size + op->data.sdword;
@@ -237,7 +232,7 @@ static int do_request( enum dis_req_type type, unsigned char *buf, unsigned int
 	/* 'len' is optional, i.e. for a range param */
 	switch (type) {
 		case req_addr:
-#if 0
+#ifdef DEBUG
 			fprintf(info.err, "X86DIS: Disassemble address %lX\n", 
 					offset );
 #endif
@@ -253,8 +248,9 @@ static int do_request( enum dis_req_type type, unsigned char *buf, unsigned int
 			break;
 
 		case req_range:
-#if 0
-			fprintf(info.err, "X86DIS: Disassemble %d bytes at %lX\n",
+#ifdef DEBUG
+			fprintf(info.err, 
+					"X86DIS: Disassemble %d bytes at %lX\n",
 					len, offset );
 #endif
 			if ( len > buf_len ) {
@@ -264,8 +260,9 @@ static int do_request( enum dis_req_type type, unsigned char *buf, unsigned int
 				  x86dis_manual_print, NULL );
 			break;
 		case req_entry:
-#if 0
-			fprintf(info.err, "X86DIS: Disassembly forward from %lX\n",
+#ifdef DEBUG
+			fprintf(info.err, 
+				"X86DIS: Disassembly forward from %lX\n",
 					offset );
 #endif
 			x86_disasm_forward( buf, buf_len, buf_rva, offset, 
@@ -318,14 +315,14 @@ static int mmap_stream( FILE *f, unsigned char **image ){
 	/* create image from stream */
 	*image = malloc( size );
 	while ( cont ) {
-		pos += fread(&((*image)[pos]), info.pagesize, 1, info.in);
+		pos += fread(&((*image)[pos]), 1, info.pagesize, info.in);
 		cont = !feof(info.in);
 		if ( cont ) {
 			size += info.pagesize;
 			*image = realloc( *image, size );
 		}
 	}
-	return( size );
+	return( pos );
 }
 
 static int act_on_mmap_stream( void ){
@@ -448,11 +445,11 @@ static int do_opt_d( char *name ) {
 	fmt = get_syntax_from_string( name );
 
 	if ( fmt != unknown_syntax ) {
-		x86_format_header( buf, 2046, fmt);
 		if ( fmt == intel_syntax || fmt == att_syntax ) {
 			/* we supply these, they are not in libdisasm syntax */
 			fprintf(info.out,  "ADDRESS BYTES\t" );
 		}
+		x86_format_header( buf, 2046, fmt);
 		fprintf(info.out, "%s\n", buf);
 	} else {
 		return(0);
@@ -520,29 +517,40 @@ static int do_opt_l( char *name ) {
 
 static void do_version(char *name) {
 	printf("%s %.2f Distributed with libdisasm from %s\n", 
-			name, X86DIS_VERSION, BASTARD_URL);
+			name, X86DIS_VERSION, LIBDISASM_URL);
 }
 static void do_help(char *name) {
-	printf( "%s -aresfolhv\n"
-		"A command-line interface to the libdisasm x86 disassembler.\n"
-		"This utility allows arbitrary bytes in a file or stream to\n"
-		"be disassembled as Intel x86 instructions.\n"
+	printf( "Usage: %s -aresfoldpLNhv\n"
+		"Disassembles arbitrary bytes in a file or stream to x86 "
+		"instructions.\n"
 		"Options:\n"
 		"\t-a offset     : disassemble instruction at offset\n"
 		"\t-r offset len : disassemble range of bytes\n"
 		"\t-e offset     : disassemble forward from offset\n"
-		"\t-s name       : set output syntax\n"
+		"\t-s name       : set output syntax"
+				   "(intel, att, native, xml, raw)\n"
 		"\t-f file       : take input from file\n"
 		"\t-o file       : write output to file\n"
 		"\t-l file       : write errors to file\n"
-		"\t-d name       : print syntax description\n"
+		"\t-d name       : display syntax description as header\n"
 		"\t-p num        : memory map page size (default 512K)\n"
+		"\t-L            : legacy (16-bit) mode\n"
+		"\t-N            : no NULLs (ignore sequences of > 4 NULLs)\n"
 		"\t-v            : display version information\n"
 		"\t-h            : display this help screen\n"
 		"\n"
-		"All 'offset' and 'len' parameters must entered in stroul(3)\n"
-		"format; any number or combination of -a, -r, and -e options\n"
-		"may be used. Syntax options are 'intel', 'att', and 'raw'.\n",
+		"The 'offset' and 'len' params must entered in stroul(3)format;"
+		" any number or\n"
+		"combination of -a, -r, and -e options may be used.\n"
+		" Examples:  \n"
+		"      x86dis -e 0 -s intel < bootsect.img\n"
+		"      x86dis -d -s raw -f a.out -e `readelf -h a.out | "
+		           "grep Entry | \n"
+		"           awk '{ printf( \"0x%%x\", strtonum($4) - "
+		           "0x8048000 ) }`\n"
+		"      echo '55 89 e5 83 EC 08' | "
+		           "perl -ane 'foreach(@F){print pack(\"C\",hex);}'|\n"
+		"           x86dis -e 0 -s att\n",
 	      name );
 }
 
@@ -651,6 +659,7 @@ int main( int argc, char **argv ) {
 	int x, rv, error = 0;
 	unsigned int len;
 	unsigned long off;
+	enum x86_options options = opt_none;
 
 	/* initialize default file streams */
 	info.in = stdin;
@@ -760,7 +769,7 @@ int main( int argc, char **argv ) {
 				}
 				break;
 			case 'p':
-			/* -e num : set pagesize */
+			/* -p num : set pagesize */
 				x++;
 				if ( x < argc ) {
 					off = strtoul( argv[x], NULL, 0 );
@@ -770,6 +779,14 @@ int main( int argc, char **argv ) {
 				} else {
 					error = 1;
 				}
+				break;
+			case 'L':
+			/* -L : use legacy 16-bit mode */
+				options = options | opt_16_bit;
+				break;
+			case 'N':
+			/* -N : use IGNORE NULLS mode */
+				options = options | opt_ignore_nulls;
 				break;
 			case 'v':
 			/* -v : version info */
@@ -799,7 +816,7 @@ int main( int argc, char **argv ) {
 	}
 
 	/* initialize libdisasm */
-	x86_init(opt_none, x86dis_reporter);
+	x86_init( options, x86dis_reporter);
 
 	/* OK, do disassembly requests */
 	if ( info.in != stdin ) {

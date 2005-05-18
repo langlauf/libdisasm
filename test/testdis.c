@@ -9,39 +9,39 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include "libdis.h"
-#include "i386.h"	/* for invariant stuff */
+
 
 int main(int argc, char *argv[])
 {
-	int fTarget, i = 0, n, size;
+	int f, i = 0, n, size;
 	unsigned char *buf;
 	void *image;
-	struct instr curr_inst;
+	x86_insn_t curr_inst;
 	x86_invariant_t inv;
-	struct stat tmpStat;
-
-
+	struct stat sb;
+	char line[80];
 
 	if (argc < 2) {
 		printf("Usage: %s filename\n", argv[0]);
 		return 1;
 	}
-
-	disassemble_init(0, ATT_SYNTAX);
-	//disassemble_init(0, INTEL_SYNTAX);
-	fTarget = open(argv[1], O_RDONLY);
-	fstat(fTarget, &tmpStat);
-	image = mmap(0, tmpStat.st_size, PROT_READ, MAP_SHARED, fTarget, 0);
-	if ((int) image < 1)
+	
+	f = open(argv[1], O_RDONLY);
+	fstat(f, &sb);
+	image = mmap(0, sb.st_size, PROT_READ, MAP_SHARED, f, 0);
+	if ((int) image < 1) {
 		return (-1);
+	}
 	buf = (unsigned char *) image;
-	close(fTarget);
+	close(f);
 	printf("File name: %s\n", argv[1]);
 
-	while (i < tmpStat.st_size) {
-		memset(&curr_inst, 0, sizeof (struct code));
+	x86_init( opt_none, NULL );
+
+	while (i < sb.st_size) {
+		memset(&curr_inst, 0, sizeof (x86_insn_t));
 		/* test invariant */
-		size = x86_invariant_insn( buf + i, tmpStat.st_size - i, &inv );
+		size = x86_invariant_disasm( buf + i, sb.st_size - i, &inv );
 		printf("%X\t", i);
 		for ( n = 0; n < size; n++ ) {
 			printf("%02X ", inv.bytes[n]);
@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
 
 		/* test code */
 		printf("%X\t", i);
-		size = disassemble_address(buf + i, tmpStat.st_size -i, &curr_inst);
+		size = x86_disasm( buf, sb.st_size, 0, i, &curr_inst );
+
 		if (size) {
 			for (n = 0; n < 12; n++) {
 				if (n < size)
@@ -58,21 +59,19 @@ int main(int argc, char *argv[])
 				else
 					printf("   ");
 			}
-			printf("%s", curr_inst.mnemonic);
-			if (curr_inst.dest[0] != 0)
-				printf("\t%s", curr_inst.dest);
-			if (curr_inst.src[0] != 0)
-				printf(", %s", curr_inst.src);
-			if (curr_inst.aux[0] != 0)
-				printf(", %s", curr_inst.aux);
-			printf("\n");
+
+			x86_format_insn( &curr_inst, line, 80, att_syntax );
+			printf( "%s\n", line );
 			i += size;
 		} else {
 			printf("invalid opcode %02X\n", buf[i]);
 			i++;
 		}
 	}
-	munmap(image, tmpStat.st_size);
-	disassemble_cleanup();
+
+	munmap(image, sb.st_size);
+
+	x86_cleanup();
+
 	return 0;
 }

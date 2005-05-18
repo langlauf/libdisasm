@@ -12,6 +12,8 @@
         #endif
 #endif
 
+#include <sys/types.h>
+
 /* 'NEW" x86 API
  * __________________________________________________________________________*/
 
@@ -54,16 +56,16 @@ typedef void (*DISASM_REPORTER)( enum x86_report_codes code, void *arg );
 void x86_report_error( enum x86_report_codes code, void *arg );
 
 /* ========================================= Libdisasm Management Routines */
-enum x86_options {
+enum x86_options {		/* these can be ORed together */
         opt_none= 0,
         opt_ignore_nulls=1,     /* ignore sequences of > 4 NULL bytes */
-        opt_16_bit=2,           /* 16-bit/DOS disassembly */
-        opt_unknown
+        opt_16_bit=2            /* 16-bit/DOS disassembly */
 };
 
+/* management routines */
 int x86_init( enum x86_options options, DISASM_REPORTER reporter);
 void x86_set_options( enum x86_options options );
-int x86_get_options( void );
+enum x86_options x86_get_options( void );
 int x86_cleanup(void);
 
 
@@ -72,6 +74,7 @@ int x86_cleanup(void);
 #define MAX_REGNAME 8
 #define MAX_INSN_SIZE 20        /* same as in i386.h */
 #define MAX_OP_STRING 32        /* max possible operand size in string form */
+#define MAX_OP_RAW_STRING 64    /* max possible operand size in xml form */
 #define MAX_OP_XML_STRING 256   /* max possible operand size in xml form */
 
 enum x86_reg_type {     /* NOTE: these may be ORed together */
@@ -95,13 +98,17 @@ enum x86_reg_type {     /* NOTE: these may be ORed together */
         reg_count       = 0x40000       /* array/rep/loop counter */
 };
 
+/* x86_reg_t : an X86 CPU register */
 typedef struct {
         char name[MAX_REGNAME];
-        int type;                       /* what register is used for */
-        int size;                       /* size of register in bytes */
-        int id;                         /* register ID #, for quick compares */
+        enum x86_reg_type type;         /* what register is used for */
+        unsigned int size;              /* size of register in bytes */
+        unsigned int id;                /* register ID #, for quick compares */
+	unsigned int alias;		/* ID of reg this is an alias for */
+	unsigned int shift;		/* amount to shift aliased reg by */
 } x86_reg_t;
 
+/* x86_ea_t : an X86 effective address (address expression) */
 typedef struct {
         unsigned int     scale;         /* scale factor */
         x86_reg_t        index, base;   /* index, base registers */
@@ -111,15 +118,20 @@ typedef struct {
 } x86_ea_t;
 
 enum x86_op_type {      /* mutually exclusive */
-        op_unused = 0,          /* empty/unused operand */
+        op_unused = 0,          /* empty/unused operand: should never occur */
         op_register = 1,        /* CPU register */
         op_immediate = 2,       /* Immediate Value */
-        op_relative = 3,        /* Relative offset from IP */
-        op_absolute = 4,        /* Absolute address (ptr16:32) */
-        op_expression = 5,      /* Address expression (scale/index/base/disp) */
-        op_offset = 6,          /* Offset from start of segment (m32) */
+        op_relative_near = 3,   /* Relative offset from IP */
+        op_relative_far = 4,    /* Relative offset from IP */
+        op_absolute = 5,        /* Absolute address (ptr16:32) */
+        op_expression = 6,      /* Address expression (scale/index/base/disp) */
+        op_offset = 7,          /* Offset from start of segment (m32) */
         op_unknown
 };
+#define x86_optype_is_address( optype ) \
+	( optype == op_absolute || optype == op_offset )
+#define x86_optype_is_relative( optype ) \
+	( optype == op_relative_near || optype == op_relative_far )
 
 enum x86_op_datatype {          /* these use Intel's lame terminology */
         op_byte = 1,            /* 1 byte integer */
@@ -131,8 +143,16 @@ enum x86_op_datatype {          /* these use Intel's lame terminology */
         op_dreal = 7,           /* 8 byte real (double real) */
         op_extreal = 8,         /* 10 byte real (extended real) */
         op_bcd = 9,             /* 10 byte binary-coded decimal */
-        op_simd = 10,           /* 16 byte packed (SIMD, MMX) */
-        op_fpuenv = 11          /* 28 byte FPU control/environment data */
+        op_ssimd = 10,          /* 16 byte : 4 packed single FP (SIMD, MMX) */
+        op_dsimd = 11,          /* 16 byte : 2 packed double FP (SIMD, MMX) */
+        op_sssimd = 12,         /* 4 byte : scalar single FP (SIMD, MMX) */
+        op_sdsimd = 13,         /* 8 byte : scalar double FP (SIMD, MMX) */
+	op_descr32 = 14,	/* 6 byte Intel descriptor 2:4 */
+	op_descr16 = 15,	/* 4 byte Intel descriptor 2:2 */
+	op_pdescr32 = 16,	/* 6 byte Intel pseudo-descriptor 32:16 */
+	op_pdescr16 = 17,	/* 6 byte Intel pseudo-descriptor 8:24:16 */
+        op_fpuenv = 18,         /* 28 byte FPU control/environment data */
+	op_fpregset = 19,	/* 512 bytes: register set */
 };
 
 enum x86_op_access {    /* ORed together */
@@ -146,6 +166,15 @@ enum x86_op_flags {     /* ORed together, but segs are mutually exclusive */
         op_string = 2,          /* possible string or array */
         op_constant = 4,        /* symbolic constant */
         op_pointer = 8,         /* operand points to a memory address */
+	op_sysref = 0x010,	/* operand is a syscall number */
+	op_implied = 0x020,	/* operand is implicit in the insn */
+	op_hardcode = 0x40,	/* operand is hardcoded in insn definition */
+	/* NOTE: an 'implied' operand is one which can be considered a side
+	 * effect of the insn, e.g. %esp being modified by PUSH or POP. A
+	 * 'hard-coded' operand is one which is specified in the instruction
+	 * definition, e.g. %es:%edi in MOVSB or 1 in ROL Eb, 1. The difference
+	 * is that hard-coded operands are printed by disassemblers and are
+	 * required to re-assemble, while implicit operands are invisible. */
         op_es_seg = 0x100,      /* ES segment override */
         op_cs_seg = 0x200,      /* CS segment override */
         op_ss_seg = 0x300,      /* SS segment override */
@@ -154,21 +183,23 @@ enum x86_op_flags {     /* ORed together, but segs are mutually exclusive */
         op_gs_seg = 0x600       /* GS segment override */
 };
 
-
+/* x86_op_t : an X86 instruction operand */
 typedef struct {
         enum x86_op_type        type;           /* operand type */
         enum x86_op_datatype    datatype;       /* operand size */
         enum x86_op_access      access;         /* operand access [RWX] */
         enum x86_op_flags       flags;          /* misc flags */
         union {
+		/* sizeof will have to work on these union members! */
                 /* immediate values */
                 char            sbyte;
                 short           sword;
                 long            sdword;
+                qword           sqword;
                 unsigned char   byte;
                 unsigned short  word;
                 unsigned long   dword;
-                qword           sqword;
+                qword           qword;
                 float           sreal;
                 double          dreal;
                 /* misc large/non-native types */
@@ -177,6 +208,10 @@ typedef struct {
                 qword           dqword[2];
                 unsigned char   simd[16];
                 unsigned char   fpuenv[28];
+		/* TODO:
+			op_descr struct
+			op
+		*/
                 /* absolute address */
                 void            * address;
                 /* offset from segment */
@@ -184,14 +219,23 @@ typedef struct {
                 /* ID of CPU register */
                 x86_reg_t       reg;
                 /* offsets from current insn */
-                char            near_offset;
-                long            far_offset;
+                char            relative_near;
+                long            relative_far;
                 /* effective address [expression] */
-                x86_ea_t        effective_addr;
+                x86_ea_t        expression;
         } data;
 } x86_op_t;
 
+/* Linked list of x86_op_t; provided for manual traversal of the operand
+ * list in an insn. Users wishing to add operands to this list, e.g. to add
+ * implicit operands, should use x86_operand_new in x86_operand_list.h */
+typedef struct x86_operand_list {
+	x86_op_t op;
+	struct x86_operand_list *next;
+} x86_oplist_t;
+
 enum x86_insn_group {
+	insn_none = 0,		/* invalid instruction */
         insn_controlflow = 1,
         insn_arithmetic = 2,
         insn_logic = 3,
@@ -208,13 +252,13 @@ enum x86_insn_group {
 };
 
 enum x86_insn_type {
+	insn_invalid = 0,	/* invalid instruction */
         /* insn_controlflow */
         insn_jmp = 0x1001,
         insn_jcc = 0x1002,
         insn_call = 0x1003,
         insn_callcc = 0x1004,
         insn_return = 0x1005,
-        insn_loop = 0x1006,
         /* insn_arithmetic */
         insn_add = 0x2001,
         insn_sub = 0x2002,
@@ -315,13 +359,25 @@ enum x86_insn_type {
         insn_szconv = 0xF003    /* change size of operand */
 };
 
+/* These flags specify special characteristics of the instruction, such as
+ * whether the inatruction is privileged or whether it serializes the
+ * pipeline.
+ * NOTE : These may not be accurate for all instructions; updates to the
+ * opcode tables have not been completed. */
+enum x86_insn_note {
+	insn_note_ring0		= 1,	/* Only available in ring 0 */
+	insn_note_smm		= 2,	/* "" in System Management Mode */
+	insn_note_serial	= 4	/* Serializing instruction */
+};
+
+/* This specifies what effects the instruction has on the %eflags register */
 enum x86_flag_status {
-        insn_carry_set = 0x1,
-        insn_zero_set = 0x2,
-        insn_oflow_set = 0x4,
-        insn_dir_set = 0x8,
-        insn_sign_set = 0x10,
-        insn_parity_set = 0x20,
+        insn_carry_set = 0x1,			/* CF */
+        insn_zero_set = 0x2,			/* ZF */
+        insn_oflow_set = 0x4,			/* OF */
+        insn_dir_set = 0x8,			/* DF */
+        insn_sign_set = 0x10,			/* SF */
+        insn_parity_set = 0x20,			/* PF */
         insn_carry_or_zero_set = 0x40,
         insn_zero_set_or_sign_ne_oflow = 0x80,
         insn_carry_clear = 0x100,
@@ -334,37 +390,92 @@ enum x86_flag_status {
         insn_sign_ne_oflow = 0x8000
 };
 
-enum x86_insn_prefix {
-        insn_no_prefix = 0,
-        insn_rep_zero = 1,
-        insn_rep_notzero = 2,
-        insn_lock = 4,
-        insn_delay = 8
+/* The CPU model in which the insturction first appeared; this can be used
+ * to mask out instructions appearing in earlier or later models or to
+ * check the portability of a binary.
+ * NOTE : These may not be accurate for all instructions; updates to the
+ * opcode tables have not been completed. */
+enum x86_insn_cpu {
+	cpu_8086 	= 1,	/* Intel */
+	cpu_80286	= 2,
+	cpu_80386	= 3,
+	cpu_80387	= 4,
+	cpu_80486	= 5,
+	cpu_pentium	= 6,
+	cpu_pentiumpro	= 7,
+	cpu_pentium2	= 8,
+	cpu_pentium3	= 9,
+	cpu_pentium4	= 10,
+	cpu_k6		= 16,	/* AMD */
+	cpu_k7		= 32,
+	cpu_athlon	= 48
 };
 
-enum x86_operand_id { op_dest=0, op_src=1, op_imm=2 };
+/* CPU ISA subsets: These are derived from the Instruction Groups in
+ * Intel Vol 1 Chapter 5; they represent subsets of the IA32 ISA but
+ * do not reflect the 'type' of the instruction in the same way that
+ * x86_insn_group does. In short, these are AMD/Intel's somewhat useless 
+ * designations.
+ * NOTE : These may not be accurate for all instructions; updates to the
+ * opcode tables have not been completed. */
+enum x86_insn_isa {
+	isa_gp		= 1,	/* general purpose */
+	isa_fp		= 2,	/* floating point */
+	isa_fpumgt	= 3,	/* FPU/SIMD management */
+	isa_mmx		= 4,	/* Intel MMX */
+	isa_sse1	= 5,	/* Intel SSE SIMD */
+	isa_sse2	= 6,	/* Intel SSE2 SIMD */
+	isa_sse3	= 7,	/* Intel SSE3 SIMD */
+	isa_3dnow	= 8,	/* AMD 3DNow! SIMD */
+	isa_sys		= 9	/* system instructions */
+};
 
+enum x86_insn_prefix {
+        insn_no_prefix = 0,
+        insn_rep_zero = 1,	/* REPZ and REPE */
+        insn_rep_notzero = 2,	/* REPNZ and REPNZ */
+        insn_lock = 4		/* LOCK: */
+};
+
+/* TODO: maybe provide insn_new/free(), and have disasm return new insn_t */
+/* x86_insn_t : an X86 instruction */
 typedef struct {
         /* information about the instruction */
         unsigned long addr;             /* load address */
         unsigned long offset;           /* offset into file/buffer */
-        enum x86_insn_group group;      /* meta-type, e.g. INSN_EXEC */
-        enum x86_insn_type type;        /* type, e.g. INSN_BRANCH */
+        enum x86_insn_group group;      /* meta-type, e.g. INS_EXEC */
+        enum x86_insn_type type;        /* type, e.g. INS_BRANCH */
+	enum x86_insn_note note;	/* note, e.g. RING0 */
         unsigned char bytes[MAX_INSN_SIZE];
         unsigned char size;             /* size of insn in bytes */
-        enum x86_insn_prefix prefix;
+	/* 16/32-bit mode settings */
+	unsigned char addr_size;	/* default address size : 2 or 4 */
+	unsigned char op_size;		/* default operand size : 2 or 4 */
+	/* CPU/instruction set */
+	enum x86_insn_cpu cpu;
+	enum x86_insn_isa isa;
+	/* flags */
         enum x86_flag_status flags_set; /* flags set or tested by insn */
         enum x86_flag_status flags_tested;
+	/* stack */
+	unsigned char stack_mod;	/* 0 or 1 : is the stack modified? */
+	long stack_mod_val;		/* val stack is modified by if known */
+
         /* the instruction proper */
+        enum x86_insn_prefix prefix;	/* prefixes ORed together */
         char prefix_string[32];         /* prefixes [might be truncated] */
-        char mnemonic[8];
-        x86_op_t operands[3];
+        char mnemonic[16];
+        x86_oplist_t *operands;		/* list of explicit/implicit operands */
+	size_t operand_count;		/* total number of operands */
+	size_t explicit_count;		/* number of explicit operands */
         /* convenience fields for user */
         void *block;                    /* code block containing this insn */
         void *function;                 /* function containing this insn */
-        void *tag;                      /* tag the insn as seen/processed */
+        int tag;			/* tag the insn as seen/processed */
 } x86_insn_t;
 
+/* returns 0 if an instruction is invalid, 1 if valid */
+int x86_insn_is_valid( x86_insn_t *insn );
 
 /* DISASSEMBLY ROUTINES
  *      Canonical order of arguments is
@@ -437,12 +548,79 @@ int x86_disasm_forward( unsigned char *buf, unsigned int buf_len,
                         DISASM_CALLBACK func, void *arg,
                         DISASM_RESOLVER resolver );
 
-x86_op_t * x86_get_operand( x86_insn_t *insn, enum x86_operand_id id );
-x86_op_t * x86_get_dest_operand( x86_insn_t *insn );
-x86_op_t * x86_get_src_operand( x86_insn_t *insn );
-x86_op_t * x86_get_imm_operand( x86_insn_t *insn );
+/* Instruction operands: these are stored as a list of explicit and
+ * implicit operands. It is recommended that the 'foreach' routines
+ * be used to when examining operands for purposes of data flow analysis */
+
+/* Operand FOREACH callback: 'arg' is an abritrary parameter passed to the
+ * foreach routine, 'insn' is the x86_insn_t whose operands are being
+ * iterated over, and 'op' is the current x86_op_t */
+typedef void (*x86_operand_fn)(x86_op_t *op, x86_insn_t *insn, void *arg);
+
+/* FOREACH types: these are used to limit the foreach results to 
+ * operands which match a certain "type" (implicit or explicit)
+ * or which are accessed in certain ways (e.g. read or write). Note
+ * that this operates on the operand list of single instruction, so
+ * specifying the 'real' operand type (register, memory, etc) is not
+ * useful. Note also that by definition Execute Access implies Read
+ * Access and implies Not Write Access.
+ * The "type" (implicit or explicit) and the access method can
+ * be ORed together, e.g. op_wo | op_explicit */
+enum x86_op_foreach_type {
+	op_any 	= 0,		/* ALL operands (explicit, implicit, rwx) */
+	op_dest = 1,		/* operands with Write access */
+	op_src 	= 2,		/* operands with Read access */
+	op_ro 	= 3,		/* operands with Read but not Write access */
+	op_wo 	= 4,		/* operands with Write but not Read access */
+	op_xo 	= 5,		/* operands with Execute access */
+	op_rw 	= 6,		/* operands with Read AND Write access */
+	op_implicit = 0x10,	/* operands that are implied by the opcode */
+	op_explicit = 0x20	/* operands that are not side-effects */
+};
+
+/* free the operand list associated with an instruction -- useful for
+ * preventing memory leaks when free()ing an x86_insn_t */
+void x86_oplist_free( x86_insn_t *insn );
+
+/* Operand foreach: invokes 'func' with 'insn' and 'arg' as arguments. The
+ * 'type' parameter is used to select only operands matching specific
+ * criteria. */
+int x86_operand_foreach( x86_insn_t *insn, x86_operand_fn func, void *arg,
+	       	  	 enum x86_op_foreach_type type);
+
+/* convenience routine: returns count of operands matching 'type' */
+size_t x86_operand_count( x86_insn_t *insn, enum x86_op_foreach_type type );
+
+/* accessor functions for the operands */
+x86_op_t * x86_operand_1st( x86_insn_t *insn );
+x86_op_t * x86_operand_2nd( x86_insn_t *insn );
+x86_op_t * x86_operand_3rd( x86_insn_t *insn );
+
+/* these allow libdisasm 2.0 accessor functions to still be used */
+#define x86_get_dest_operand( insn ) x86_operand_1st( insn )
+#define x86_get_src_operand( insn ) x86_operand_2nd( insn )
+#define x86_get_imm_operand( insn ) x86_operand_3rd( insn )
+
 /* get size of operand data in bytes */
-int x86_operand_size( x86_op_t *op );
+unsigned int x86_operand_size( x86_op_t *op );
+
+/* Operand Convenience Routines: the following three routines are common
+ * operations on operands, intended to ease the burden of the programmer. */
+/* Get Relative Offset: return as a sign-extended long the near or far
+ * relative offset operand, or 0 if there is none. There can be only one
+ * relaive offset operand in an instruction. */
+long x86_get_rel_offset( x86_insn_t *insn );
+
+/* Get Branch Target: return the x86_op_t containing the target of
+ * a jump or call operand, or NULL if there is no branch target. 
+ * Internally, a 'branch target' is defined as any operand with
+ * Execute Access set. There can be only one branch target per instruction. */
+x86_op_t * x86_get_branch_target( x86_insn_t *insn );
+
+/* Get Immediate: return the x86_op_t containing the immediate operand
+ * for this instruction, or NULL if there is no immediate operand. There
+ * can be only one immediate operand per instruction */
+x86_op_t * x86_get_imm( x86_insn_t *insn );
 
 /* Get Raw Immediate Data: returns a pointer to the immediate data encoded
  * in the instruction. This is useful for large data types [>32 bits] currently
@@ -453,12 +631,30 @@ int x86_operand_size( x86_op_t *op );
  * 'op_imm' operand (the third operand in instructions like 'mul' */
 unsigned char * x86_get_raw_imm( x86_insn_t *insn );
 
+
+/* More accessor fuctions, this time for user-defined info... */
+/* set the address (usually RVA) of the insn */
 void x86_set_insn_addr( x86_insn_t *insn, unsigned long addr );
+
+/* set the offset (usually offset into file) of the insn */
 void x86_set_insn_offset( x86_insn_t *insn, unsigned int offset );
+
+/* set a pointer to the function owning the instruction. The 
+ * type of 'func' is user-defined; libdisasm does not use the func field. */
 void x86_set_insn_function( x86_insn_t *insn, void * func );
+
+/* set a pointer to the block of code owning the instruction. The 
+ * type of 'block' is user-defined; libdisasm does not use the block field. */
 void x86_set_insn_block( x86_insn_t *insn, void * block );
+
+/* instruction tagging: these routines allow the programmer to mark
+ * instructions as "seen" in a DFS, for example. libdisasm does not use
+ * the tag field.*/ 
+/* set insn->tag to 1 */
 void x86_tag_insn( x86_insn_t *insn );
+/* set insn->tag to 0 */
 void x86_untag_insn( x86_insn_t *insn );
+/* return insn->tag */
 int x86_insn_is_tagged( x86_insn_t *insn );
 
 
@@ -466,43 +662,60 @@ int x86_insn_is_tagged( x86_insn_t *insn );
  *      AT&T is standard AS/GAS-style: "mnemonic\tsrc, dest, imm"
  *      Intel is standard MASM/NASM/TASM: "mnemonic\tdest,src, imm"
  *      Native is tab-delimited: "RVA\tbytes\tmnemonic\tdest\tsrc\timm"
+ *      XML is your typical <insn> ... </insn>
+ *      Raw is addr|offset|size|bytes|prefix... see libdisasm_formats.7
  */
 enum x86_asm_format { 
-	unknown_syntax, 
+	unknown_syntax = 0,		/* never use! */
 	native_syntax, 
 	intel_syntax, 
-	att_syntax, 
-	raw_syntax, 
-	xml_syntax };
+	att_syntax,  
+	xml_syntax,
+	raw_syntax
+};
 
+/* format (sprintf) an operand into 'buf' using specified syntax */
 int x86_format_operand(x86_op_t *op, x86_insn_t *insn, char *buf, int len,
-                  enum x86_asm_format);
+                  enum x86_asm_format format);
 
+/* format (sprintf) an instruction mnemonic into 'buf' using specified syntax */
 int x86_format_mnemonic(x86_insn_t *insn, char *buf, int len,
-                        enum x86_asm_format);
+                        enum x86_asm_format format);
 
+/* format (sprintf) an instruction into 'buf' using specified syntax;
+ * this includes formatting all operands */
 int x86_format_insn(x86_insn_t *insn, char *buf, int len, enum x86_asm_format);
 
-/* returns a description of the format's syntax */
+/* fill 'buf' with a description of the format's syntax */
 int x86_format_header( char *buf, int len, enum x86_asm_format format);
 
-/* Endianness of CPU */
-int x86_endian(void);
+/* Endianness of an x86 CPU : 0 is big, 1 is little; always returns 1 */
+unsigned int x86_endian(void);
 
 /* Default address and operand size in bytes */
-int x86_addr_size(void);
-int x86_op_size(void);
+unsigned int x86_addr_size(void);
+unsigned int x86_op_size(void);
 
 /* Size of a machine word in bytes */
-int x86_word_size(void);
+unsigned int x86_word_size(void);
 
 /* maximum size of a code instruction */
-int x86_max_inst_size(void);
+unsigned int x86_max_inst_size(void);
 
 /* register IDs of Stack, Frame, and Instruction pointer */
-int x86_sp_reg(void);
-int x86_fp_reg(void);
-int x86_ip_reg();
+unsigned int x86_sp_reg(void);
+unsigned int x86_fp_reg(void);
+unsigned int x86_ip_reg(void);
+
+/* fill 'reg' struct with details of register 'id' */
+void x86_reg_from_id( unsigned int id, x86_reg_t * reg );
+
+/* convenience macro demonstrating how to get an aliased register; proto is
+ *   void x86_get_aliased_reg( x86_reg_t *alias_reg, x86_reg_t *output_reg )
+ * where 'alias_reg' is a reg operand and 'output_reg' is filled with the
+ * register that the operand is an alias for */
+#define x86_get_aliased_reg( alias_reg, output_reg )			\
+	x86_reg_from_id( alias_reg->alias, output_reg )
 
 
 /* ================================== Invariant Instruction Representation */
@@ -539,100 +752,17 @@ typedef struct {
 typedef struct {
 	unsigned char bytes[64];	/* invariant representation */
 	unsigned int  size;		/* number of bytes in insn */
-        enum x86_insn_group group;      /* meta-type, e.g. INSN_EXEC */
-        enum x86_insn_type type;        /* type, e.g. INSN_BRANCH */
-	x86_invariant_op_t operands[3];	/* use same ordering as x86_insn_t */
+        enum x86_insn_group group;      /* meta-type, e.g. INS_EXEC */
+        enum x86_insn_type type;        /* type, e.g. INS_BRANCH */
+	x86_invariant_op_t operands[3];	/* operands: dest, src, imm */
 } x86_invariant_t;
-
-int x86_invariant_insn( unsigned char *buf, int buf_len, x86_invariant_t *inv );
-
-/* allow users to remove the old, bad-namespace API with a #define */
-#ifndef LIBDISASM_NO_COMPAT
-
-/* "OLD" libdisasm API
- * __________________________________________________________________________*/
-
-#include "bastard.h"
-/* "legacy" routines provided for backwards compatibility */
-struct x86_old_instr {
-    char    mnemonic[16];
-    char    dest[32];
-    char    src[32];
-    char    aux[32];
-    int     mnemType;
-    int     destType;
-    int     srcType;
-    int     auxType;
-    int     size;
-};
-
-int x86_old_init(int options, int format);
-
-int x86_old_sprint_addexp(char *str, int len, struct addr_exp *e);
-
-int x86_old_disasm_addr(char *buf, int buf_len, struct x86_old_instr *i);
-
-int x86_old_sprint_addr(char *str, int len, char *buf, int buf_len);
-
-/* x86_old_disasm_addr_raw() fills a bastard-style code struct instead of a
- * libdisasm instr struct. The code struct contains the operands in their
- * binary format -- the operand type must be used to determine how to
- * display the operand:
- *   OP_REG  - operand is a pointer to a string constant
- *   OP_IMM  - operand is an immediate value
- *   OP_REL  - operand is a val to be added to %eip
- *   OP_ADDR - operand is an absolute address
- *   OP_EXPR - operand is a pointer to an addr_exp struct
- *   OP_OFF  - operand is a segment offset
- * Note that the operand should be tested to determine if it is signed
- * (op_type & OP_SIGNED) for OP_IMM and OP_REL types. The string reference
- * in an OP_REG operand is static & constant and should NOT be free()ed; the
- * addr_exp reference in an OP_EXPR operand is dynamically allocated and
- * MUST be free()ed.
- * The code struct is defined in bastard.h
- */
-int x86old_disasm_addr_raw(char *buf, int buf_len, struct code *c);
-
-/* formats : */
-#define NATIVE_SYNTAX 0
-#define INTEL_SYNTAX  1
-#define ATT_SYNTAX    2
-
-#define instr x86_old_instr
-
-#define disassemble_init x86_old_init
-#define disassemble_cleanup x86_cleanup
-
-#define sprint_addrexp x86_old_sprint_addexp
-#define disassemble_address x86_old_disasm_addr
-#define sprint_address x86_old_sprint_addr
-#define disassemble_address_raw x86old_disasm_addr_raw
-
-#define cpu_endian x86_endian
-#define cpu_addr_size x86_addr_size
-#define cpu_op_size x86_op_size
-#define cpu_word_size x86_word_size
-#define cpu_inst_size x86_max_inst_size
-#define cpu_sp x86_sp_reg
-#define cpu_fp x86_fp_reg
-#define cpu_ip x86_ip_reg
-
-#define op_type(x) (x & OP_TYPE_MASK)
-#define op_size(x) (x & OP_SIZE_MASK)
-#define op_perm(x) (x & OP_PERM_MASK)
-#define op_mod(x) (x & OP_MOD_MASK)
-/* operand segment override */
-#define op_seg(x) (x & OP_SEG_MASK)
-/* is operand a register */
-#define op_isreg(x) (x & OP_REG)
-
-/* These take instruction type as a parameter */
-#define insn_type(x)  (x & INSN_TYPE_MASK)
-#define insn_group(x) (x & INSN_GROUP_MASK)
-#define insn_mod(x) (x & INSN_MOD_MASK)
-#define insn_size(x) (x & INSN_SIZE_MASK)
-
-#endif
+ 
+/* return a version of the instruction with the variant bytes masked out */
+size_t x86_invariant_disasm( unsigned char *buf, int buf_len, 
+			  x86_invariant_t *inv );
+/* return the size in bytes of the intruction pointed to by 'buf';
+ * this used x86_invariant_disasm since it faster than x86_disasm */
+size_t x86_size_disasm( unsigned char *buf, unsigned int buf_len );
 
 
 #endif

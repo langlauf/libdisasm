@@ -60,6 +60,7 @@ void quikdis_raw_print( x86_insn_t *insn, void *arg ) {
 
 void quikdis_manual_print( x86_insn_t *insn, void *arg ) {
         char buf[MAX_OP_STRING];
+	x86_op_t *op;
         int i;
 
         printf("%08lX", insn->addr );
@@ -74,20 +75,22 @@ void quikdis_manual_print( x86_insn_t *insn, void *arg ) {
         x86_format_mnemonic( insn, buf, MAX_OP_STRING, att_syntax );
         printf( "\t%s\t", buf );
 
-        if ( insn->operands[op_src].type != op_unused ) {
-                x86_format_operand( &insn->operands[op_src], insn, buf,
-                               MAX_OP_STRING, att_syntax );
+	op = x86_operand_2nd( insn );
+        if ( op && op->type != op_unused ) {
+                x86_format_operand( op, insn, buf, MAX_OP_STRING, att_syntax );
                 /* if src is present, so is dest */
                 printf("%s, ", buf);
         }
-        if ( insn->operands[op_dest].type != op_unused ) {
-                x86_format_operand( &insn->operands[op_dest], insn, buf,
-                               MAX_OP_STRING, att_syntax );
+
+	op = x86_operand_1st( insn );
+        if ( op && op->type != op_unused ) {
+                x86_format_operand( op, insn, buf, MAX_OP_STRING, att_syntax );
                 printf("%s", buf);
         }
-        if ( insn->operands[op_imm].type != op_unused ) {
-                x86_format_operand( &insn->operands[op_imm], insn, buf,
-                               MAX_OP_STRING, att_syntax );
+
+	op = x86_operand_3rd( insn );
+        if ( op && op->type != op_unused ) {
+                x86_format_operand( op, insn, buf, MAX_OP_STRING, att_syntax );
                 /* if src is present, so is dest */
                 printf(", %s", buf);
         }
@@ -134,16 +137,12 @@ long quikdis_resolver( x86_op_t *op, x86_insn_t *insn ) {
 
         /* this part is a flat ripoff of internal_resolver in libdis.c */
         /* we don't do any register or stack resolving */
-        if ( op->type == op_absolute || op->type == op_offset ) {
+        if ( x86_optype_is_address(op->type) ) {
                 retval = op->data.sdword; /* no need to cast the void* */
-        } else if (op->type == op_relative ){
-                if ( op->datatype == op_byte ) {
-                        retval = insn->addr + insn->size + op->data.sbyte;
-                } else if ( op->datatype == op_word ) {
-                        retval = insn->addr + insn->size + op->data.sword;
-                } else if ( op->datatype == op_dword ) {
-                        retval = insn->addr + insn->size + op->data.sdword;
-                }
+        } else if ( op->type == op_relative_near ) {
+		retval = insn->addr + insn->size + op->data.relative_near;
+        } else if ( op->type == op_relative_far ) {
+		retval = insn->addr + insn->size + op->data.relative_far;
         }
 
         return( retval );

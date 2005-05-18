@@ -1,0 +1,514 @@
+
+
+
+
+
+<!doctype html public "-//W3C//DTD HTML 4.0 Transitional//EN"
+"http://www.w3.org/TR/REC-html40/loose.dtd">
+<!-- ViewCVS -- http://viewcvs.sourceforge.net/
+by Greg Stein -- mailto:gstein@lyra.org -->
+<html>
+<head>
+<title>SourceForge.net CVS Repository - diff - cvs: bastard/libdisasm/i386.c</title>
+<link rel="stylesheet" href="/viewcvs.py/*docroot*/styles.css" type="text/css">
+</head>
+<body>
+<center>
+<iframe SRC="http://ads.osdn.com/?op=iframe&position=1&allpositions=1&site_id=2&section=cvs" width="728" height="90" frameborder="0" border="0" MARGINWIDTH="0" MARGINHEIGHT="0" SCROLLING="no"></iframe>
+<!-- image audit code -->
+<script LANGUAGE="JAVASCRIPT">
+<!--
+now = new Date();
+tail = now.getTime();
+document.write("<IMG SRC='http://images-aud.sourceforge.net/pc.gif?l,");
+document.write(tail);
+document.write("' WIDTH=1 HEIGHT=1 BORDER=0>");
+//-->
+</SCRIPT>
+<noscript>
+<img src="http://images-aud.sourceforge.net/pc.gif?l,81677"
+WIDTH=1 HEIGHT=1 BORDER=0>
+</noscript>
+<!-- end audit code -->
+</center>
+<div class="vc_navheader">
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td align="left"><a href="/viewcvs.py/#dirlist">[cvs]</a> / <a href="/viewcvs.py/bastard/#dirlist">bastard</a> / <a href="/viewcvs.py/bastard/libdisasm/#dirlist">libdisasm</a> / i386.c</h1></td>
+<td align="right">
+
+&nbsp;
+
+</td>
+</tr>
+</table>
+</div>
+<table width="100%">
+<tr><td><h1>cvs: bastard/libdisasm/i386.c</h1></td>
+<td align=right><a href="http://sourceforge.net"><img src="/sourceforge_whitebg.gif" alt="(logo)" border=0 width=136 height=79></a></td></tr>
+</table>
+
+<h3 align=center>Diff for /bastard/libdisasm/i386.c between version 1.8 and 1.9</h3>
+<table border=0 cellspacing=0 cellpadding=0 width="100%">
+<tr class="vc_diff_header">
+<th width="50%" valign=top>
+version 1.8, Thu Aug  5 00:05:56 2004 UTC
+
+</th>
+<th width="50%" valign=top>
+version 1.9, Thu Aug  5 22:14:13 2004 UTC
+
+</th>
+</tr>
+
+
+<tr class="vc_diff_chunk_header">
+<td width="50%">
+<table width="100%" border=1 cellpadding=5>
+<tr>
+<td> <b>Line 950</b>&nbsp;
+<span class="vc_diff_chunk_extra"></span></td>
+</tr>
+</table>
+</td>
+<td width="50%">
+<table width="100%" border=1 cellpadding=5>
+<tr>
+<td> <b>Line 950</b>&nbsp;
+<span class="vc_diff_chunk_extra"></span></td>
+</tr>
+</table>
+</td>
+</tr>
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* shift opcode extension into lowest bits [convert to table index] */</td>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* shift opcode extension into lowest bits [convert to table index] */</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;op &gt;&gt;= tables86[tbl].shift;</td>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;op &gt;&gt;= tables86[tbl].shift;</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp;</td>
+<td class="vc_diff_nochange">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_remove">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* This byte will be added to size by DecocdeModRM; therefore</td>
+<td class="vc_diff_empty">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_remove">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; * decrease the size here so the instr isn't 1 byte too large */</td>
+<td class="vc_diff_empty">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_remove">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;if ((unsigned char) tables86[tbl].mask != 0xFF) {</td>
+<td class="vc_diff_empty">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_remove">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;size--; &nbsp; &nbsp; &nbsp; &nbsp; /* Note: FPU w/ 0xFF mask use whole modR/M */</td>
+<td class="vc_diff_empty">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_remove">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;}</td>
+<td class="vc_diff_empty">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_remove">&nbsp;</td>
+<td class="vc_diff_empty">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* mask out bits for opcode [0xFF] or modr/m opcode extension [0x07] */</td>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* mask out bits for opcode [0xFF] or modr/m opcode extension [0x07] */</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;op &amp;= tables86[tbl].mask;</td>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;op &amp;= tables86[tbl].mask;</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;insn = &amp;t[op];</td>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;insn = &amp;t[op];</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;next_tbl = insn-&gt;table;</td>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;next_tbl = insn-&gt;table;</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp;</td>
+<td class="vc_diff_nochange">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* This byte will be added to size by DecocdeModRM; therefore</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; * decrease the size here so the instr isn't 1 byte too large */</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* NOTE: with [slm]fence instructions, the ModR/M is used to for</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; * the opcode extension but nothing else, so we have to check if</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; * the instruction takes no arguments before discarding the size</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; * of the opcode extension byte */</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;if ( (unsigned char) tables86[tbl].mask != 0xFF &amp;&amp;</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; insn-&gt;destFlg != ARG_NONE) {</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;size--; &nbsp; &nbsp; &nbsp; &nbsp; /* Note: FPU w/ 0xFF mask use whole modR/M */</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;}</td>
+</tr>
+
+
+
+
+
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td class="vc_diff_add">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* DEAL WITH RESULTS FROM TABLE */</td>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* DEAL WITH RESULTS FROM TABLE */</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp;</td>
+<td class="vc_diff_nochange">&nbsp;</td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* first, handle intel's special cases */</td>
+<td class="vc_diff_nochange">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;/* first, handle intel's special cases */</td>
+</tr>
+
+
+
+
+
+
+
+
+</table>
+<br><hr noshade width="100%">
+<table border=0 cellpadding=10>
+<tr>
+<td>
+<table border=1>
+<tr>
+<td>Legend:<br>
+<table border=0 cellspacing=0 cellpadding=1>
+<tr>
+<td align=center class="vc_diff_remove">Removed from v.1.8</td>
+<td class="vc_diff_empty">&nbsp;</td>
+</tr>
+<tr>
+<td align=center colspan=2 class="vc_diff_change">changed lines</td>
+</tr>
+<tr>
+<td class="vc_diff_empty">&nbsp;</td>
+<td align=center class="vc_diff_add">Added in v.1.9</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td>
+<form method=get action="/viewcvs.py/bastard/libdisasm/i386.c">
+<input type="hidden" name="r1" value="1.8" /><input type="hidden" name="r2" value="1.9" />
+<select name="diff_format" onchange="submit()">
+<option value="h" selected>Colored Diff</option>
+<option value="l" >Long Colored Diff</option>
+<option value="u" >Unidiff</option>
+<option value="c" >Context Diff</option>
+<option value="s" >Side by Side</option>
+</select>
+<input type=submit value="Show">
+</form>
+</td>
+</tr>
+</table>
+
+<hr noshade>
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td align="left">
+<address><a href="http://sourceforge.net/">Back to SourceForge.net</a></address><br />
+Powered by <a href="http://viewcvs.sourceforge.net/">ViewCVS 1.0-dev</a>
+</td>
+<td align="right">
+<h3><a target="_blank" href="/viewcvs.py/*docroot*/help_rootview.html">ViewCVS and CVS Help</a></h3>
+</td>
+</tr>
+</table>
+</body>
+</html>
+
