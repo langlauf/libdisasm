@@ -4,9 +4,9 @@
 
 unsigned int x86_imm_signsized( unsigned char * buf, size_t buf_len,
 				void *dest, unsigned int size ) {
-	signed char *cp = (unsigned char *) dest;
-	signed short *sp = (unsigned short *) dest;
-	signed long *lp = (unsigned long *) dest;
+	signed char *cp = (signed char *) dest;
+	signed short *sp = (signed short *) dest;
+	signed long *lp = (signed long *) dest;
 	qword *qp = (qword *) dest;
 
 	if ( size > buf_len ) {

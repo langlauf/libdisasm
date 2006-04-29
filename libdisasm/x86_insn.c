@@ -16,6 +16,27 @@ int x86_insn_is_valid( x86_insn_t *insn ) {
 	return 0;
 }
 
+unsigned long x86_get_address( x86_insn_t *insn ) {
+	x86_oplist_t *op_lst;
+        if (! insn || ! insn->operands ) {
+        	return 0;
+        }
+
+	for (op_lst = insn->operands; op_lst; op_lst = op_lst->next ) {
+		if ( op_lst->op.type == op_offset ) {
+			return op_lst->op.data.offset;
+		} else if ( op_lst->op.type == op_absolute ) {
+			if ( op_lst->op.datatype == op_descr16 ) {
+				return (unsigned long)
+					op_lst->op.data.absolute.offset.off16;
+			}
+			return op_lst->op.data.absolute.offset.off32;
+		}
+	}
+	
+	return 0;
+}
+
 long x86_get_rel_offset( x86_insn_t *insn ) {
 	x86_oplist_t *op_lst;
         if (! insn || ! insn->operands ) {
@@ -118,8 +139,14 @@ unsigned int x86_operand_size( x86_op_t *op ) {
                 case op_descr16: return 4;
                 case op_pdescr32: return 6;
                 case op_pdescr16: return 6;
-                case op_fpuenv:  return 28;
+		case op_bounds16: return 4;
+		case op_bounds32: return 8;
+                case op_fpuenv16:  return 14;
+                case op_fpuenv32:  return 28;
+                case op_fpustate16:  return 94;
+                case op_fpustate32:  return 108;
                 case op_fpregset: return 512;
+		case op_fpreg: return 10;
         }
         return(4);      /* default size */
 }

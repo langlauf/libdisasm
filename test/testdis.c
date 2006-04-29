@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 	close(f);
 	printf("File name: %s\n", argv[1]);
 
-	x86_init( opt_none, NULL );
+	x86_init( opt_none, NULL, NULL );
 
 	while (i < sb.st_size) {
 		memset(&curr_inst, 0, sizeof (x86_insn_t));

@@ -11,6 +11,11 @@
               [-v|--version]
 */
 
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -53,7 +58,7 @@ static struct DIS_INFO {
 
 /* ------------------------------------------------------- REPORTER */
 /* this is x86dis.c code that needs to be ripped off and used in x86dis.c */
-void x86dis_reporter( enum x86_report_codes code, void *arg ) {
+void x86dis_reporter( enum x86_report_codes code, void *arg, void *junk ) {
 	char * str;
 
 	/* here we could examine the error and do something useful;
@@ -135,7 +140,7 @@ static int rva_list_add( unsigned long rva ) {
 /* In the resolver, we keep a list of RVAs we have seen and weed these out.
  * Needless to say, this is a simple example with poor performance. */
 
-long x86dis_resolver( x86_op_t *op, x86_insn_t *insn ) {
+long x86dis_resolver( x86_op_t *op, x86_insn_t *insn, void *arg ) {
 	long retval = -1;
 
 	if (! rva_list_add(insn->addr) ) {
@@ -267,7 +272,7 @@ static int do_request( enum dis_req_type type, unsigned char *buf, unsigned int
 #endif
 			x86_disasm_forward( buf, buf_len, buf_rva, offset, 
 				    x86dis_manual_print, NULL,
-				    x86dis_resolver );
+				    x86dis_resolver, NULL );
 			break;
 	}
 
@@ -349,7 +354,7 @@ static int act_on_stream( void ){
 			/* advance the stream to request offset */
 			fread( buf, size, 1, stdin );
 			pos += size;
-			if ( feof ) {
+			if ( feof(stdin) ) {
 				/* some kind of feedback here */
 				break;
 			}
@@ -362,7 +367,7 @@ static int act_on_stream( void ){
 			break;
 		} else {
 			if ( req->type == req_addr ) {
-				size = x86_max_inst_size();
+				size = x86_max_insn_size();
 			} else {
 				size = req->length;
 			}
@@ -516,8 +521,8 @@ static int do_opt_l( char *name ) {
 }
 
 static void do_version(char *name) {
-	printf("%s %.2f Distributed with libdisasm from %s\n", 
-			name, X86DIS_VERSION, LIBDISASM_URL);
+	printf("%s %f Distributed with libdisasm from %s\n", 
+			name, PACKAGE_VERSION, LIBDISASM_URL);
 }
 static void do_help(char *name) {
 	printf( "Usage: %s -aresfoldpLNhv\n"
@@ -816,7 +821,7 @@ int main( int argc, char **argv ) {
 	}
 
 	/* initialize libdisasm */
-	x86_init( options, x86dis_reporter);
+	x86_init( options, x86dis_reporter, NULL);
 
 	/* OK, do disassembly requests */
 	if ( info.in != stdin ) {

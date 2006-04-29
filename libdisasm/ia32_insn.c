@@ -21,8 +21,15 @@ extern ia32_settings_t ia32_settings;
 		 op->data.reg.alias == REG_ESP_INDEX) )
 #define IS_IMM( op ) (op->type == op_immediate )
 
+#ifdef WIN32
+#  define INLINE 
+#else
+#  define INLINE inline
+#endif
+
 /* for caluclating stack modification based on an operand */
-static inline long long_from_operand( x86_op_t *op ) {
+static INLINE long long_from_operand( x86_op_t *op ) {
+
 	if (! IS_IMM(op) ) {
 		return 0L;
 	}
@@ -58,7 +65,8 @@ static void ia32_stack_mod(x86_insn_t *insn) {
 		src = &insn->operands->next->op;
 	}
 
-	insn->stack_mod = insn->stack_mod_val = 0;
+	insn->stack_mod = 0; 
+	insn->stack_mod_val = 0;
 
 	switch ( insn->type ) {
 		case insn_call:
@@ -310,7 +318,7 @@ static size_t ia32_decode_insn( unsigned char *buf, size_t buf_len,
 	/* we have one small inelegant hack here, to deal with 
 	 * the two prefixes that have implicit operands. If Intel
 	 * adds more, we'll change the algorithm to suit :) */
-	if ( (prefixes & PREFIX_REPZ) || (prefixes * PREFIX_REPNZ) ) {
+	if ( (prefixes & PREFIX_REPZ) || (prefixes & PREFIX_REPNZ) ) {
 		ia32_insn_implicit_ops( insn, IDX_IMPLICIT_REP );
 	}
 
@@ -492,15 +500,15 @@ size_t ia32_table_lookup( unsigned char *buf, size_t buf_len,
 		/* extensions-to-extensions never consume a byte */
 		--size;
 	} else if ( (table_desc->type == tbl_extension || 
-		     table_desc->type == tbl_fpu_ext ||
-	       	     table_desc->type == tbl_fpu  ) && 
+	       	     table_desc->type == tbl_fpu ||
+		     table_desc->type == tbl_fpu_ext ) && 
 		/* extensions that have an operand encoded in ModR/M
 		 * never consume a byte */
 	      	    (uses_modrm_flag((*raw_insn)->dest_flag) || 
 	             uses_modrm_flag((*raw_insn)->src_flag) )  	) {
 		--size;
 	}
-	
+
 	size += sub_size;
 
 	return size;
@@ -512,10 +520,8 @@ static size_t handle_insn_suffix( unsigned char *buf, size_t buf_len,
 	ia32_insn_t *sfx_insn;
 	size_t size;
 	unsigned int prefixes = 0;
-	unsigned char op;
 
 	table_desc = &ia32_tables[raw_insn->table]; 
-	op = GET_BYTE( &buf[size], buf_len - size );
 	size = ia32_table_lookup( buf, buf_len, raw_insn->table, &sfx_insn,
 				 &prefixes );
 	if (! size || sfx_insn->mnem_flag == INS_INVALID ) {
@@ -528,12 +534,12 @@ static size_t handle_insn_suffix( unsigned char *buf, size_t buf_len,
 	return 1;
 }
 
-#define MAKE_INVALID( i ) 				\
-		strcpy( i->mnemonic, "invalid" );	\
-		x86_oplist_free( i );			\
-		i->size = 0;				\
-		i->group = insn_none;			\
-		i->type = insn_invalid;
+/* invalid instructions are handled by returning 0 [error] from the
+ * function, setting the size of the insn to 1 byte, and copying
+ * the byte at the start of the invalid insn into the x86_insn_t.
+ * if the caller is saving the x86_insn_t for invalid instructions,
+ * instead of discarding them, this will maintain a consistent
+ * address space in the x86_insn_ts */
 
 /* this function is called by the controlling disassembler, so its name and
  * calling convention cannot be changed */
@@ -550,22 +556,20 @@ size_t ia32_disasm_addr( unsigned char * buf, size_t buf_len,
 	unsigned int prefixes = 0;
 	size_t size, sfx_size;
 	
-	/* ensure we are all NULLed up */
-	memset( insn, 0, sizeof(x86_insn_t) );
-
 	if ( (ia32_settings.options & opt_ignore_nulls) && buf_len > 3 &&
 	    !buf[0] && !buf[1] && !buf[2] && !buf[3]) {
 		/* IF IGNORE_NULLS is set AND
 		 * first 4 bytes in the intruction stream are NULL
 		 * THEN return 0 (END_OF_DISASSEMBLY) */
 		/* TODO: set errno */
+		MAKE_INVALID( insn, buf );
 		return 0;	/* 4 00 bytes in a row? This isn't code! */
 	}
 
 	/* Perform recursive table lookup starting with main table (0) */
 	size = ia32_table_lookup(buf, buf_len, idx_Main, &raw_insn, &prefixes);
 	if ( size == INVALID_INSN || size > buf_len ) {
-		MAKE_INVALID( insn );
+		MAKE_INVALID( insn, buf );
 		/* TODO: set errno */
 		return 0;
 	}
@@ -580,12 +584,20 @@ size_t ia32_disasm_addr( unsigned char * buf, size_t buf_len,
 				raw_insn, insn );
 		if (! sfx_size ) {
 			/* TODO: set errno */
-			MAKE_INVALID( insn );
+			MAKE_INVALID( insn, buf );
 			return 0;
 		}
 
 		size += sfx_size;
 	}
 
+	if (! size ) {
+		/* invalid insn */
+		MAKE_INVALID( insn, buf );
+		return 0;
+	}
+
+
+	insn->size = size;
 	return size;		/* return size of instruction in bytes */
 }

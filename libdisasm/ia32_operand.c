@@ -110,10 +110,21 @@ static size_t decode_operand_value( unsigned char *buf, size_t buf_len,
 
 		/* No MODRM : note these set operand type explicitly */
 		case ADDRMETH_A:	/* No modR/M -- direct addr */
-			op->type = op_offset;	/* op_absolute ? */
-			x86_imm_sized( buf, buf_len, &op->data.address, 
-					insn->addr_size );
-			size = insn->addr_size;
+			op->type = op_absolute;
+
+			/* segment:offset address used in far calls */
+			x86_imm_sized( buf, buf_len, 
+				       &op->data.absolute.segment, 2 );
+			if ( insn->addr_size == 4 ) {
+				x86_imm_sized( buf, buf_len, 
+				    &op->data.absolute.offset.off32, 4 );
+				size = 6;
+			} else {
+				x86_imm_sized( buf, buf_len, 
+				    &op->data.absolute.offset.off16, 2 );
+				size = 4;
+			}
+
 			break;
 		case ADDRMETH_I:	/* Immediate val */
 			op->type = op_immediate;
@@ -154,6 +165,7 @@ static size_t decode_operand_value( unsigned char *buf, size_t buf_len,
 			op->flags |= op_pointer;
 			x86_imm_sized( buf, buf_len, &op->data.offset, 
 					insn->addr_size );
+
 			size = insn->addr_size;
 			break;
 
@@ -237,12 +249,9 @@ static size_t decode_operand_size( unsigned int op_type, x86_insn_t *insn,
 			op->datatype = (size == 4) ? op_word : op_byte;
 			break;
 		case OPTYPE_a:	/* 2 word or 2 dword [op size attr] */
-			/* craziness: this is either a 16:16 or a 32:32
-			 * depending on whether we are in 16- or 32-bit mode
-			 * they are either two signed 16-bit values or
-			 * 2 signed 32-bit values. Madness! Thank you BOUND! */
+			/* pointer to a 16:16 or 32:32 BOUNDS operand */
 			size = (insn->op_size == 4) ? 8 : 4;
-			op->datatype = (size == 4) ? op_word : op_dword;
+			op->datatype = (size == 4) ? op_bounds32 : op_bounds16;
 			break;
 		case OPTYPE_v:	/* word or dword [op size attr] */
 			size = (insn->op_size == 4) ? 4 : 2;
@@ -268,17 +277,16 @@ static size_t decode_operand_size( unsigned int op_type, x86_insn_t *insn,
 			op->datatype = op_dword;
 			break;
 		case OPTYPE_s:	/* 6-byte psuedo-descriptor */
+			/* ptr to 6-byte value which is 32:16 in 32-bit
+			 * mode, or 8:24:16 in 16-bit mode. The high byte
+			 * is ignored in 16-bit mode. */
 			size = 6;
-			/* technically this is not accurate: the operand
-			 * is a 6-byte value which is either 32:16 in 32-bit
-			 * mode, or 8:24:16 in 16-bit mode. See the Intel
-			 * manual, it is fuggen wacky. */
 			op->datatype = (insn->addr_size == 4) ? 
 				op_pdescr32 : op_pdescr16;
 			break;
 		case OPTYPE_q:	/* qword, ignore op-size */
 			size = 8;
-			op->datatype = op_word;
+			op->datatype = op_qword;
 			break;
 		case OPTYPE_dq:	/* d-qword, ignore op-size */
 			size = 16;
@@ -323,28 +331,37 @@ static size_t decode_operand_size( unsigned int op_type, x86_insn_t *insn,
 			op->datatype = op_sreal;
 			break;
 		case OPTYPE_fd:	/* double real */
-			size = 4;
+			size = 8;
 			op->datatype = op_dreal;
 			break;
 		case OPTYPE_fe:	/* extended real */
-			size = 4;
+			size = 10;
 			op->datatype = op_extreal;
 			break;
 		case OPTYPE_fb:	/* packed BCD */
-			size = 4;
+			size = 10;
 			op->datatype = op_bcd;
 			break;
-		case OPTYPE_fv:	/* pointer to FPU env: 14/28-bytes */
-			size = 4;
-			op->datatype = op_fpuenv;
+		case OPTYPE_fv:	/* pointer to FPU env: 14 or 28-bytes */
+			size = (insn->addr_size == 4)? 28 : 14;
+			op->datatype = (size == 28)?  op_fpuenv32: op_fpuenv16;
+			break;
+		case OPTYPE_ft:	/* pointer to FPU env: 94 or 108 bytes */
+			size = (insn->addr_size == 4)? 108 : 94;
+			op->datatype = (size == 108)? 
+				op_fpustate32: op_fpustate16;
 			break;
 		case OPTYPE_fx:	/* 512-byte register stack */
-			size = 4;
+			size = 512;
 			op->datatype = op_fpregset;
+			break;
+		case OPTYPE_fp:	/* floating point register */
+			size = 10;	/* double extended precision */
+			op->datatype = op_fpreg;
 			break;
 		case OPTYPE_m:	/* fake operand type used for "lea Gv, M" */
 			size = insn->addr_size;
-			op->datatype = (size == 4) ?  op_word : op_word;
+			op->datatype = (size == 4) ?  op_dword : op_word;
 			break;
 		case 0:
 		default:
@@ -376,8 +393,8 @@ size_t ia32_decode_operand( unsigned char *buf, size_t buf_len,
 	op = x86_operand_new( insn );
 
 	/* ++ Copy flags from opcode table to x86_insn_t */
-	op->access = (enum x86_op_access) OP_PERM(op_type);
-	op->flags = (enum x86_op_flags) (OP_FLAGS(op_type) >> 12);
+	op->access = (enum x86_op_access) OP_PERM(raw_flags);
+	op->flags = (enum x86_op_flags) (OP_FLAGS(raw_flags) >> 12);
 
 	/* Get size (for decoding)  and datatype of operand */
 	op_size = decode_operand_size(op_type, insn, op);

@@ -6,7 +6,7 @@
 /* OK, this is a hack to deal with prefixes having implicit operands...
  * thought I had removed all the old hackishness ;( */
 
-#define IDX_IMPLICIT_REP 42	/* change this if the table changes! */
+#define IDX_IMPLICIT_REP 41	/* change this if the table changes! */
 
 unsigned int ia32_insn_implicit_ops( x86_insn_t *insn, unsigned int impl_idx );
 

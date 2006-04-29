@@ -1,38 +1,38 @@
 #; register testing
-pushl %eax
-pushl %ebx
-pushl %ecx
-pushl %edx
-pushl %esi
-pushl %edi
-pushl %esp
-pushl %ebp
-pushw %ax
-pushw %bx
-pushw %cx
-pushw %dx
-pushw %si
-pushw %di
-pushw %sp
-pushw %bp
+push %eax
+push %ebx
+push %ecx
+push %edx
+push %esi
+push %edi
+push %esp
+push %ebp
+push %ax
+push %bx
+push %cx
+push %dx
+push %si
+push %di
+push %sp
+push %bp
 push $1
 #; modr/m testing
-push (%eax)
-push (%ebx)
-push (%ecx)
-push (%edx)
-push (%esi)
-push (%edi)
-push (%esp)
-push (%ebp)
+pushw (%eax)
+pushw (%ebx)
+pushw (%ecx)
+pushw (%edx)
+pushw (%esi)
+pushw (%edi)
+pushw (%esp)
+pushw (%ebp)
 #; sib testing
-push (%eax,%ebx,1)
-push (%eax,%ebx,4)
-push 16(%eax,%ebx,4)
-push 16(,%ebx,4)
-push 0x80401000(,%ebx,4)
-push 0x80401000(%eax,%ebx,4)
-push 0x80401000(%eax)
+pushl (%eax,%ebx,1)
+pushl (%eax,%ebx,4)
+pushl 16(%eax,%ebx,4)
+pushl 16(,%ebx,4)
+pushl 0x80401000(,%ebx,4)
+pushl 0x80401000(%eax,%ebx,4)
+pushl 0x80401000(%eax)
 push 0x80401000
 #; semi alphabetical insn list
 aaa
@@ -690,8 +690,19 @@ nop
 movdq2q %xmm2, %mm0
 nop
 pf2id %mm0, %mm1
+lcall $0x0010, $0xfeedface
+ljmp  $0x0010, $0xfeedface
+movb %al, 0x44332211
+movl %eax, 0x44332211
 nop
 nop
 nop
 nop
 #; prefix testing
+
+jmp $10, $10000
+jmp *0xDEADBEEF(, 1)
+jmp *(%eax, 1)
+jmp *%eax
+jmp 3
+call 0x80401000

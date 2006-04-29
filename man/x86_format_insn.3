@@ -1,4 +1,4 @@
-.TH "x86_format_insn" "3" "0.20" "mammon_" "libdisasm"
+.TH "x86_format_insn" "3" "0.21" "mammon_" "libdisasm"
 .SH "NAME"
 x86_format_insn, x86_format_mnemonic, x86_format_operand, x86_format_header \- generate
 a string representation of a disassembled instruction.
@@ -6,9 +6,9 @@ a string representation of a disassembled instruction.
 \fB#include <libdis.h>\fR
 .br 
 .LP 
-\fBint x86_format_operand(x86_op_t *\fRop\fB, x86_insn_t *\fRinsn\fB, char *\fRbuf\fB, 
+\fBint x86_format_operand(x86_op_t *\fRop\fB, char *\fRbuf\fB, int \fRlen\fB, 
 .br 
-	int \fRlen\fB, enum x86_asm_format \fRformat\fB);\fR
+	enum x86_asm_format \fRformat\fB);\fR
 
 \fBint x86_format_mnemonic(x86_insn_t *\fRinsn\fB, char *\fRbuf\fB, int \fRlen\fB,
 .br  
@@ -40,6 +40,116 @@ The following formats are available:
 	\fBraw_syntax\fR : Pipe\-delimited internal format
 .br 
 	\fBxml_syntax\fR : XML representation
+.LP 
+\fBNative\fR syntax uses dest, src ordering and displays
+.br 
+the address, opcode bytes, and instruction in tab\-delimited
+.br 
+format:
+.br 
+       \fB"ADDRESS\\tBYTES\\tMNEMONIC\\tDEST\\tSRC\\tIMM"\fR
+.LP 
+\fBIntel\fR syntax uses dest, src ordering and displays
+the instruction in tab\-and\-comma delimited format:
+.br 
+       \fB"MNEMONIC\\tDEST, SRC, IMM"\fR
+.LP 
+\fBAT&T\fR syntax uses src, destordering and displays
+the instruction in tab\-and\-comma delimited format:
+.br 
+       \fB"MNEMONIC\\tSRC, DEST, IMM"\fR
+.LP 
+\fBRaw\fR syntax displays all details of the instruction
+in pipe\-delimited format:
+.br 
+       \fB"ADDRESS|OFFSET|SIZE|BYTES|PREFIX|PREFIX_STRING|
+.LP 
+\fBXML\fR syntax displays all details of the instruction
+in XML format:
+.br 
+        GROUP|TYPE|NOTES|MNEMONIC|CPU|ISA|FLAGS_SET|
+.br 
+        FLAGS_TESTED|STACK_MOD|STACK_MOD_VAL"
+.br 
+        [|OP_TYPE|OP_DATATYPE|OP_ACCESS|OP_FLAGS|OP]*"\fR
+.br 
+        \fB"<x86_insn>
+.br 
+               <address rva= offset= size= bytes=/>
+.br 
+               <prefix type= string=/>
+.br 
+               <mnemonic group= type= string= cpu= isa= note= />
+.br 
+               <flags type=set>
+.br 
+                  <flag name=>
+.br 
+               </flags>
+.br 
+               <stack_mod val= >
+.br 
+               <flags type=tested>
+.br 
+                  <flag name=>
+.br 
+               </flags>
+.br 
+               <operand name=>
+.br 
+                  <register name= type= size=/>
+.br 
+                  <immediate type= value=/>
+.br 
+                  <relative_offset value=/>
+.br 
+                  <absolute_address value=>
+.br 
+                     <segment value=/>
+.br 
+                  </absolute_address>
+.br 
+                  <address_expression>
+.br 
+                     <segment value=/>
+.br 
+                     <base>
+.br 
+                        <register name= type= size=/>
+.br 
+                     </base>
+.br 
+                     <index>
+.br 
+                        <register name= type= size=/>
+.br 
+                     </index>
+.br 
+                     <scale>
+.br 
+                        <immediate value=/>
+.br 
+                     </scale>
+.br 
+                     <displacement>
+.br 
+                        <immediate value=/>
+.br 
+                        <address value=/>
+.br 
+                     </displacement>
+.br 
+                  </address_expression>
+.br 
+                  <segment_offset>
+.br 
+                     <address value=/>
+.br 
+                  </segment_offset>
+.br 
+               </operand>
+.br 
+            </x86_insn>"\fR 
 .br 
 .SH "EXAMPLES"
 .LP 
@@ -49,7 +159,7 @@ void att_print( x86_insn_t *insn ) {
 .br 
         char line[256];
 .br 
-        x86_format_insn(insn, line, 256, intell_syntax);
+        x86_format_insn(insn, line, 256, intel_syntax);
 .br 
         printf( "%s\\n", line);
 .br 

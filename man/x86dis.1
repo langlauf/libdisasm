@@ -1,4 +1,4 @@
-.TH "X86DIS" "1" ".01" "mammon_" "libdisasm"
+.TH "X86DIS" "1" "0.21" "mammon_" "libdisasm"
 .SH "NAME"
 x86dis \- disassemble a bytestream of Intel x86 instructions
 .SH "SYNTAX"
@@ -24,7 +24,6 @@ x86dis [\fB\-a\fR offset|\fB\-\-addr=\fRoffset]
 .br 
        [\fB\-v\fR|\fB\-\-version\fR]
 .SH "DESCRIPTION"
-
 A command\-line interface to the libdisasm disassembler library.
 .SH "OPTIONS"
 .LP 
@@ -78,6 +77,14 @@ All \fBoffset\fR and \fBlen\fR parameters are expected to follow the conventions
 cat `which ls` | x86dis \-s intel \-e 0x00 \-r 0x00 \-1
 \-a 0xEEEE 
 .br 
+x86dis \-e 0 \-s intel < bootsect.img
+.br 
+x86dis \-d \-s raw \-f a.out \-e `readelf \-h a.out |
+.br 
+      grep Entry |  awk '{ printf( "0x%%x", \
+      strtonum($4) \- 0x8048000 ) }`
+echo '55 89 e5 83 EC 08' | perl \-ane 'foreach(@F){print pack("C",hex);}'|
+x86dis \-e 0 \-s att
 .SH "NOTES"
 .LP 
 \fBx86dis\fR performs no file format parsing, nor any verification that its input is in fact executable binary code. All offsets are assumed to be from the start of the file, with no load addresses applied. The intent is to provide a bytestream disassembler rather than an object file disassembler.

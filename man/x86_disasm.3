@@ -1,4 +1,4 @@
-.TH "x86_disasm" "3" "0.20" "mammon_" "libdisasm"
+.TH "x86_disasm" "3" "0.21" "mammon_" "libdisasm"
 .SH "NAME"
 x86_disasm, x86_disasm_forward, x86_disasm_range \- disassemble a
 bytestream to x86 assembly language instructions
@@ -8,7 +8,7 @@ bytestream to x86 assembly language instructions
 .LP 
 \fBtypedef void (*\fRDISASM_CALLBACK\fB)( x86_insn_t *, void * );\fR
 .br 
-\fBtypedef long (*\fRDISASM_RESOLVER\fB)( x86_op_t *, x86_insn_t * );\fR
+\fBtypedef long (*\fRDISASM_RESOLVER\fB)( x86_op_t *, x86_insn_t *, void * );\fR
 .LP 
 \fBint x86_disasm( unsigned char *\fRbuf\fB, unsigned int \fRbuf_len\fB,
 .br  
@@ -28,7 +28,7 @@ bytestream to x86 assembly language instructions
 .br  
 			DISASM_CALLBACK \fRfunc\fB, void *\fRarg\fB,
 .br 
-			DISASM_RESOLVER \fRresolver\fB );\fR
+			DISASM_RESOLVER \fRresolver\fB, void *\fRr_arg\fB );\fR
 .LP 
 
 
@@ -36,47 +36,64 @@ bytestream to x86 assembly language instructions
 .LP 
 #define MAX_REGNAME 8
 .br 
+#define MAX_PREFIX_STR 32
+.br 
+#define MAX_MNEM_STR 16
+.br 
 #define MAX_INSN_SIZE 20	/* same as in i386.h */
 .br 
 #define MAX_OP_STRING 32	/* max possible operand size in string form */
+.br 
+#define MAX_OP_RAW_STRING 64    /* max possible operand size in raw form */
+.br 
+#define MAX_OP_XML_STRING 256   /* max possible operand size in xml form */
+.br 
+#define MAX_NUM_OPERANDS 8	/* max # implicit and explicit operands */
+.br 
+#define MAX_INSN_STRING 512        /* 2 * 8 * MAX_OP_STRING */
+.br 
+#define MAX_INSN_RAW_STRING 1024   /* 2 * 8 * MAX_OP_RAW_STRING */
+.br 
+#define MAX_INSN_XML_STRING 4096   /* 2 * 8 * MAX_OP_XML_STRING */
+
 .LP 
 enum x86_reg_type { 	/* NOTE: these may be ORed together */
 .br 
-	reg_gen 	= 0x00001,	/* general purpose */
+	reg_gen     = 0x00001,	/* general purpose */
 .br 
-	reg_in 		= 0x00002,	/* incoming args, ala RISC */ 
+	reg_in      = 0x00002,	/* incoming args, ala RISC */ 
 .br 
-	reg_out 	= 0x00004,	/* args to calls, ala RISC */
+	reg_out     = 0x00004,	/* args to calls, ala RISC */
 .br 
-	reg_local 	= 0x00008,	/* local vars, ala RISC */
+	reg_local   = 0x00008,	/* local vars, ala RISC */
 .br 
-	reg_fpu 	= 0x00010,	/* FPU data register */
+	reg_fpu     = 0x00010,	/* FPU data register */
 .br 
-	reg_seg 	= 0x00020,	/* segment register */
+	reg_seg     = 0x00020,	/* segment register */
 .br 
-	reg_simd 	= 0x00040,	/* SIMD/MMX reg */
+	reg_simd    = 0x00040,	/* SIMD/MMX reg */
 .br 
-	reg_sys 	= 0x00080,	/* restricted/system register */
+	reg_sys     = 0x00080,	/* restricted/system register */
 .br 
-	reg_sp 		= 0x00100,	/* stack pointer */
+	reg_sp      = 0x00100,	/* stack pointer */
 .br 
-	reg_fp		= 0x00200,	/* frame pointer */
+	reg_fp      = 0x00200,	/* frame pointer */
 .br 
-	reg_pc		= 0x00400,	/* program counter */
+	reg_pc      = 0x00400,	/* program counter */
 .br 
-	reg_retaddr 	= 0x00800,	/* return addr for func */
+	reg_retaddr = 0x00800,	/* return addr for func */
 .br 
-	reg_cond 	= 0x01000,	/* condition code / flags */
+	reg_cond    = 0x01000,	/* condition code / flags */
 .br 
-	reg_zero 	= 0x02000,	/* zero register, ala RISC */
+	reg_zero    = 0x02000,	/* zero register, ala RISC */
 .br 
-	reg_ret 	= 0x04000,	/* return value */
+	reg_ret     = 0x04000,	/* return value */
 .br 
-	reg_src 	= 0x10000,	/* array/rep source */
+	reg_src     = 0x10000,	/* array/rep source */
 .br 
-	reg_dest	= 0x20000,	/* array/rep destination */
+	reg_dest    = 0x20000,	/* array/rep destination */
 .br 
-	reg_count 	= 0x40000	/* array/rep/loop counter */
+	reg_count   = 0x40000	/* array/rep/loop counter */
 .br 
 };
 .LP 
@@ -84,11 +101,15 @@ typedef struct {
 .br 
 	char name[MAX_REGNAME];
 .br 
-	int type;			/* what register is used for */
+	enum x86_reg_type type;			/* what register is used for */
 .br 
-	int size;			/* size of register in bytes */
+	unsigned int size;			/* size of register in bytes */
 .br 
-	int id;				/* register ID #, for quick compares */
+	unsigned int id;				/* register ID #, for quick compares */
+.br 
+	unsigned int alias;			/* ID of reg this is an alias of */
+.br 
+	unsigned int shift;			/* amount to shift aliased reg by */
 .br 
 } x86_reg_t;
 .LP 
@@ -114,13 +135,15 @@ enum x86_op_type {	/* mutually exclusive */
 .br 
 	op_immediate = 2,	/* Immediate Value */
 .br 
-	op_relative = 3,	/* Relative offset from IP */
+	op_relative_near = 3,	/* Relative offset from IP */
 .br 
-	op_absolute = 4,	/* Absolute address (ptr16:32) */
+	op_relative_far = 4,
 .br 
-	op_expression = 5,	/* Address expression (scale/index/base/disp) */
+	op_absolute = 5,	/* Absolute address (ptr16:32) */
 .br 
-	op_offset = 6,		/* Offset from start of segment (m32) */
+	op_expression = 6,	/* Address expression (scale/index/base/disp) */
+.br 
+	op_offset = 7,		/* Offset from start of segment (m32) */
 .br 
 	op_unknown
 .br 
@@ -148,6 +171,22 @@ enum x86_op_datatype {		/* these use Intel's lame terminology */
 .br 
 	op_simd = 10,		/* 16 byte packed (SIMD, MMX) */
 .br 
+        op_ssimd = 10,          /* 16 byte : 4 packed single FP (SIMD, MMX) */
+.br 
+        op_dsimd = 11,          /* 16 byte : 2 packed double FP (SIMD, MMX) */
+.br 
+        op_sssimd = 12,         /* 4 byte : scalar single FP (SIMD, MMX) */
+.br 
+        op_sdsimd = 13,         /* 8 byte : scalar double FP (SIMD, MMX) */
+.br 
+	op_descr32 = 14,	/* 6 byte Intel descriptor 2:4 */
+.br 
+	op_descr16 = 15,	/* 4 byte Intel descriptor 2:2 */
+.br 
+	op_pdescr32 = 16,	/* 6 byte Intel pseudo\-descriptor 32:16 */
+.br 
+	op_pdescr16 = 17,	/* 6 byte Intel pseudo\-descriptor 8:24:16 */
+.br 
 	op_fpuenv = 11		/* 28 byte FPU control/environment data */
 .br 
 };
@@ -171,6 +210,12 @@ enum x86_op_flags {	/* ORed together, but segs are mutually exclusive */
 	op_constant = 4,	/* symbolic constant */
 .br 
 	op_pointer = 8,		/* operand points to a memory address */
+.br 
+	op_sysref = 0x010,	/* operand is a syscall number */
+.br 
+	op_implied = 0x020,	/* operand is implicit in insn */
+.br 
+	op_hardcode = 0x040, /* operans is hardcoded in insn */
 .br 
 	op_es_seg = 0x100,	/* ES segment override */
 .br 
@@ -206,13 +251,15 @@ typedef struct {
 .br 
 		long 		sdword;
 .br 
+		qword 		sqword;
+.br 
 		unsigned char 	byte;
 .br 
 		unsigned short 	word;
 .br 
 		unsigned long 	dword;
 .br 
-		qword 		sqword;
+		qword 			qword;
 .br 
 		float	        sreal;	
 .br 
@@ -244,19 +291,31 @@ typedef struct {
 .br 
 		/* offsets from current insn */
 .br 
-		char 		near_offset;
+		char 		relative_near;
 .br 
-		long 		far_offset;
+		long 		relative_far;
 .br 
 		/* effective address [expression] */
 .br 
-		x86_ea_t 	effective_addr;
+		x86_ea_t 	expression;
 .br 
 	} data;
 .br 
+	void * insn;
+.br 
 } x86_op_t;
 .LP 
+typedef struct x86_operand_list {
+.br 
+	x86_op_t op;
+.br 
+	struct x86_operand_list *next;
+.br 
+} x86_oplist_t;
+.LP 
 enum x86_insn_group {
+.br 
+	insn_none = 0,
 .br 
 	insn_controlflow = 1,
 .br 
@@ -287,6 +346,8 @@ enum x86_insn_group {
 };
 .LP 
 enum x86_insn_type {
+.br 
+	insn_invalid = 0,
 .br 
 	/* insn_controlflow */
 .br 
@@ -500,6 +561,16 @@ enum x86_insn_type {
 .br 
 };
 .LP 
+enum x86_insn_note {
+.br 
+	insn_note_ring0		= 1,	/* Only available in ring 0 */
+.br 
+	insn_note_smm		= 2,	/* "" in System Management Mode */
+.br 
+	insn_note_serial	= 4	/* Serializing instruction */
+.br 
+};
+.LP 
 enum x86_flag_status {
 .br 
 	insn_carry_set = 0x1,
@@ -536,6 +607,58 @@ enum x86_flag_status {
 .br 
 };
 .LP 
+enum x86_insn_cpu {
+.br 
+	cpu_8086 	= 1,	/* Intel */
+.br 
+	cpu_80286	= 2,
+.br 
+	cpu_80386	= 3,
+.br 
+	cpu_80387	= 4,
+.br 
+	cpu_80486	= 5,
+.br 
+	cpu_pentium	= 6,
+.br 
+	cpu_pentiumpro	= 7,
+.br 
+	cpu_pentium2	= 8,
+.br 
+	cpu_pentium3	= 9,
+>br>
+	cpu_pentium4	= 10,
+.br 
+	cpu_k6		= 16,	/* AMD */
+.br 
+	cpu_k7		= 32,
+.br 
+	cpu_athlon	= 48
+.br 
+};
+.LP 
+enum x86_insn_isa {
+.br 
+	isa_gp		= 1,	/* general purpose */
+.br 
+	isa_fp		= 2,	/* floating point */
+.br 
+	isa_fpumgt	= 3,	/* FPU/SIMD management */
+.br 
+	isa_mmx		= 4,	/* Intel MMX */
+.br 
+	isa_sse1	= 5,	/* Intel SSE SIMD */
+.br 
+	isa_sse2	= 6,	/* Intel SSE2 SIMD */
+.br 
+	isa_sse3	= 7,	/* Intel SSE3 SIMD */
+.br 
+	isa_3dnow	= 8,	/* AMD 3DNow! SIMD */
+.br 
+	isa_sys		= 9	/* system instructions */
+.br 
+};
+.LP 
 enum x86_insn_prefix {
 .br 
 	insn_no_prefix = 0,
@@ -549,10 +672,6 @@ enum x86_insn_prefix {
 	insn_delay = 8
 .br 
 };
-.br 
-
-.br 
-enum x86_operand_id { op_dest=0, op_src=1, op_imm=2 };
 .LP 
 typedef struct {
 .br 

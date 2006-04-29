@@ -16,7 +16,22 @@
 
 #define MAX_INSTRUCTION_SIZE 20
 
+/* invalid instructions are handled by returning 0 [error] from the
+ * function, setting the size of the insn to 1 byte, and copying
+ * the byte at the start of the invalid insn into the x86_insn_t.
+ * if the caller is saving the x86_insn_t for invalid instructions,
+ * instead of discarding them, this will maintain a consistent
+ * address space in the x86_insn_ts */
+
 #define INVALID_INSN ((size_t) -1)	/* return value for invalid insn */
+#define MAKE_INVALID( i, buf )                          \
+                strcpy( i->mnemonic, "invalid" );       \
+                x86_oplist_free( i );                   \
+                i->size = 1;                            \
+                i->group = insn_none;                   \
+                i->type = insn_invalid;                 \
+                memcpy( i->bytes, buf, 1 );
+
 
 unsigned int ia32_disasm_addr( unsigned char * buf, size_t buf_len, 
 		x86_insn_t *insn);
@@ -126,8 +141,8 @@ typedef struct {
 #define	  ADDRMETH_RT  	0x00160000	/* test reg hard-coded in opcode */
 #define	  ADDRMETH_RF  	0x00170000	/* fpu reg hard-coded in opcode */
 #define	  ADDRMETH_II  	0x00180000	/* immediate hard-coded in opcode */
-#define   ADDRMETH_PP   0x000B0000	/* mm reg ONLY in modr/m field */
-#define   ADDRMETH_VV   0x00100000	/* xmm reg ONLY in mod/rm field */
+#define   ADDRMETH_PP   0x00190000	/* mm reg ONLY in modr/m field */
+#define   ADDRMETH_VV   0x001A0000	/* xmm reg ONLY in mod/rm field */
 
 /* Operand Types, per intel manual */
 #define OPTYPE_MASK	0xFF000000
@@ -153,13 +168,14 @@ typedef struct {
 #define OPTYPE_fd	0x20000000	/* pointer to double real */
 #define OPTYPE_fe	0x30000000	/* pointer to extended real */
 #define OPTYPE_fb	0x40000000	/* pointer to packed BCD */
-#define OPTYPE_fv	0x50000000	/* pointer to FPU env: 14/28-bytes */
-#define OPTYPE_fx       0x60000000      /* FPU ctrl (fxsave) : 512 bites */
-#define OPTYPE_fp       0x70000000      /* general fpu register */
+#define OPTYPE_fv	0x50000000	/* pointer to FPU env: 14|28-bytes */
+#define OPTYPE_ft	0x60000000	/* pointer to FPU state: 94|108-bytes */
+#define OPTYPE_fx       0x70000000      /* pointer to FPU regs: 512 bites */
+#define OPTYPE_fp       0x80000000      /* general fpu register: dbl ext */
 
 /* SSE2 operand types */
-#define OPTYPE_sd	0x80000000	/* scalar of 128-bit double fp */
-#define OPTYPE_pd	0x90000000	/* 128-bit double fp */
+#define OPTYPE_sd	0x90000000	/* scalar of 128-bit double fp */
+#define OPTYPE_pd	0xA0000000	/* 128-bit double fp */
 
 
 

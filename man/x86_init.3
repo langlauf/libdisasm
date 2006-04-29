@@ -1,19 +1,23 @@
-.TH "x86_init" "3" "0.20" "mammon_" "libdisasm"
+.TH "x86_init" "3" "0.21" "mammon_" "libdisasm"
 .SH "NAME"
 x86_init, x86_cleanup \- initialize and cleanup libdisasm
 .SH "SYNOPSIS"
 \fB#include <libdis.h>\fR
 .br 
 .LP 
-\fBtypedef void (*\fRDISASM_REPORTER\fB)( enum x86_report_codes, void * );\fR
-.LP 
-\fBint x86_init( enum x86_options \fRoptions\fB, DISASM_REPORTER \fRreporter\fB);\fR
+\fBtypedef void (*\fRDISASM_REPORTER\fB)( enum x86_report_codes\fR code\fB, 
 .br 
+        void *\fR data\fB, void *\fR arg \fB);\fR
+.LP 
+\fBint x86_init( enum x86_options\fR options\fB, DISASM_REPORTER \fRreporter\fB, 
+.br 
+        void *\fR arg\fB);
+.LP 
 \fBint x86_cleanup(void);\fR
 .LP 
 .SH "DESCRIPTION"
 .LP 
-enum x86_options {
+\fBenum x86_options {\fR
 .br 
 	opt_none= 0,
 .br 
@@ -23,9 +27,9 @@ enum x86_options {
 .br 
 	opt_unknown
 .br 
-};
+\fB};\fR
 .LP 
-enum x86_report_codes {
+\fBenum x86_report_codes {\fR
 .br 
         report_disasm_bounds,
 .br 
@@ -35,15 +39,23 @@ enum x86_report_codes {
 .br 
         report_unknown
 .br 
-};
+\fB};\fR
 .LP 
 .SH "EXAMPLES"
 .LP 
-The following provides a skeleton for initializing and terminating \fBlibdisasm\fR:
+The following provides a skeleton for initializing and terminating 
+.br 
+\fBlibdisasm\fR:
 .LP 
-void reporter( enum x86_report_codes code, void *arg ) {
+void reporter( enum x86_report_codes code, void *data, void *arg ) {
 .br 
         char * str = NULL;
+.br 
+        FILE *stream = (FILE *) arg;
+.br 
+        if (! stream ) stream = stderr;
+.br 
+
 .br 
         /* here would could examine the error and do something useful;
 .br 
@@ -53,13 +65,17 @@ void reporter( enum x86_report_codes code, void *arg ) {
 .br 
                 case report_disasm_bounds:
 .br 
-                        str = "Attempt to disassemble RVA beyond end of buffer";
+                        str = "Attempt to disassemble RVA "
+.br 
+                              "beyond end of buffer";
 .br 
                         break;
 .br 
                 case report_insn_bounds:
 .br 
-                        str = "Instruction at RVA extends beyond buffer";
+                        str = "Instruction at RVA extends "
+.br 
+                              "beyond buffer";
 .br 
                         break;
 .br 
@@ -77,13 +93,15 @@ void reporter( enum x86_report_codes code, void *arg ) {
 .br 
         }
 .br 
-        fprintf(stderr, "ERROR \'%s:\' %p\n", str, arg);
+
+.br 
+        fprintf(stream, "ERROR \'%s:\' %p\n", str, data);
 .br 
 }
 .LP 
 int main( int argc, char **argv ) {
 .br 
-        x86_init(opt_none, reporter);
+        x86_init(opt_none, reporter, stderr);
 .LP 
         /* disassembler code goes here */
 .LP 

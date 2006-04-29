@@ -42,3 +42,27 @@ Gd, Wps1H
 MOVMSKPD
 (66)
 Gd, Wpd1H
+
+The opcode table entries for LFS, LGS, and LSS
+
+L[FGS]S
+Mp
+
+should be
+
+L[FGS]S
+Gv,Mp
+
+MOVHLPS 
+Vps, Vps
+
+MOVLHPS
+Vps, Vps
+
+should be
+
+MOVHLPS 
+Vps, Wps
+
+MOVLHPS
+Vps, Wps

@@ -25,22 +25,16 @@ LIBDIS  = libdisasm/libdisasm.so
 LIBDISA = libdisasm/libdisasm.a
 DOC	= doc/libdisasm.txt doc/README.TXT
 
-# /usr/local/bin
-BINDISTRIB_BIN 		= \
-		$(X86DIS)
-# /usr/local/lib
-BINDISTRIB_LIB 		= \
-		$(LIBDIS) $(LIBDISA)
-# /usr/local/include/libdisasm
-BINDISTRIB_INC		= \
-		libdisasm/libdis.h
-# /usr/local/man
-BINDISTRIB_MAN		= \
-		
-# /usr/local/share/libdisasm: doc, sample src
-BINDISTRIB_SHARE	= \
-			
-SRCDISTRIB		= \
+TOP	= $(PWD)
+DISTRIB = $(TOP)/distrib
+INSTALL = /usr/local
+INSTALL_BIN	= $(INSTALL)/bin
+INSTALL_LIB	= $(INSTALL)/lib
+INSTALL_INC	= $(INSTALL)/include
+INSTALL_MAN	= $(INSTALL)/man
+INSTALL_SHARE	= $(INSTALL)/share/libdisasm
+export TOP DISTRIB INSTALL
+export INSTALL_BIN INSTALL_LIB INSTALL_INC INSTALL_MAN INSTALL_SHARE
 
 
 
@@ -54,8 +48,8 @@ export CC LD AR RANLIB
 # ============================================================================
 # TARGETS
 
-all: $(LIBDIS) $(X86DIS) $(TESTDIS) 
-dummy: x86dis libdisasm test distrib src-tgz tgz rpm deb
+all: $(LIBDIS) $(X86DIS) $(TESTDIS) swig-modules
+dummy: x86dis libdisasm test dist swig-modules install clean
 
 # ------------------------------------------------------- LIBDIS
 libdisasm: $(LIBDIS)
@@ -80,31 +74,53 @@ $(TESTDIS):
 $(QUIKDIS):
 	cd test && make
 
+# ------------------------------------------------------- SWIG
+swig-modules: $(LIBDIS)
+	#cd swig && make 
+
 # ------------------------------------------------------- CLEAN
 clean:
 	cd libdisasm && make clean
 	cd x86dis && make clean
+	cd test && make clean
+	cd swig && make clean
 
 # ------------------------------------------------------- INSTALL
-install: $(LIBDIS) $(X86DIS)
+install: $(LIBDIS) $(X86DIS) 
+#swig-install
 	# install bindistrib files to INSTALL_LOC
+	cd libdisasm && make install
+	cd x86dis && make install
+	cd man && make install
+	cd doc && make install
+	cd perl && make install
+	cd swig && make install
+
+uninstall:
+	cd libdisasm && make uninstall
+	cd x86dis && make uninstall
+	cd man && make uninstall
+	cd doc && make uninstall
+	cd perl && make uninstall
+	cd swig && make uninstall
+
 
 # ------------------------------------------------------- DISTRIB
-distrib: src-tgz tgz rpm deb
-	@echo MAKE DISTRIB not yet supported 
-
-src-tgz:
-
-tgz: $(LIBDIS) $(X86DIS)
-	@echo MAKE TGZ not yet supported 
-
-rpm: $(LIBDIS) $(X86DIS)
-	@echo MAKE RPM not yet supported 
-
-deb: $(LIBDIS) $(X86DIS)
-	@echo MAKE DEB not yet supported 
-	mkdir -p distrib/deb/libdisasm/$(DEST)/lib
-	mkdir -p distrib/deb/libdisasm/$(DEST)/bin
-	mkdir -p distrib/deb/libdisasm/$(DEST)/man
-	mkdir -p distrib/deb/libdisasm/$(DEST)/include/libdisasm
-	mkdir -p distrib/deb/libdisasm/$(DEST)/share/libdisasm
+dist: $(LIBDIS) $(X86DIS)
+	cd libdisasm && make dist
+	cd x86dis && make dist
+	cd man && make dist
+	cd doc && make dist
+	cd perl && make dist
+	cd test && make dist
+	# handle swig modules
+	cd swig && make dist || true
+	# copy Makefile and License
+	cp Makefile distrib/src/libdisasm-$(VERSION)/Makefile
+	cp LICENSE distrib/src/libdisasm-$(VERSION)/LICENSE
+	cp LICENSE distrib/tgz/usr/local/share/libdisasm/doc/LICENSE
+	cp LICENSE distrib/deb/libdisasm/usr/local/share/libdisasm/doc/LICENSE
+	cp LICENSE \
+	   distrib/deb/libdisasm-dev/usr/local/share/libdisasm/doc/LICENSE
+	#cp LICENSE distrib/rpm/libdisasm/usr/local/share/libdisasm/doc/LICENSE
+	cd distrib && make dist

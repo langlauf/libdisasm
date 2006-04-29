@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include "libdis.h"
 
-void quikdis_reporter( enum x86_report_codes code, void *arg ) {
+void quikdis_reporter( enum x86_report_codes code, void *arg, void *junk ) {
         char * str = NULL;
 
         /* here would could examine the error and do something useful;
@@ -77,20 +77,20 @@ void quikdis_manual_print( x86_insn_t *insn, void *arg ) {
 
 	op = x86_operand_2nd( insn );
         if ( op && op->type != op_unused ) {
-                x86_format_operand( op, insn, buf, MAX_OP_STRING, att_syntax );
+                x86_format_operand( op, buf, MAX_OP_STRING, att_syntax );
                 /* if src is present, so is dest */
                 printf("%s, ", buf);
         }
 
 	op = x86_operand_1st( insn );
         if ( op && op->type != op_unused ) {
-                x86_format_operand( op, insn, buf, MAX_OP_STRING, att_syntax );
+                x86_format_operand( op, buf, MAX_OP_STRING, att_syntax );
                 printf("%s", buf);
         }
 
 	op = x86_operand_3rd( insn );
         if ( op && op->type != op_unused ) {
-                x86_format_operand( op, insn, buf, MAX_OP_STRING, att_syntax );
+                x86_format_operand( op, buf, MAX_OP_STRING, att_syntax );
                 /* if src is present, so is dest */
                 printf(", %s", buf);
         }
@@ -127,7 +127,7 @@ static int rva_list_add( unsigned long rva ) {
 /* In the resolver, we keep a list of RVAs we have seen and weed these out.
  * Needless to say, this is a simple example with poor performance. */
 
-long quikdis_resolver( x86_op_t *op, x86_insn_t *insn ) {
+long quikdis_resolver( x86_op_t *op, x86_insn_t *insn, void *arg ) {
         long retval = -1;
 
         if (! rva_list_add(insn->addr) ) {
@@ -154,7 +154,8 @@ int main(int argc, char *argv[])
         int target_fd;
         struct stat sb;
         unsigned long buf_rva = 0;
-        unsigned char *buf = NULL, line[1024];
+        unsigned char *buf = NULL;
+	char line[1024];
         unsigned int entry = 0, i, size, buf_len = 0;
         Elf32_Ehdr *elf_hdr;
         Elf32_Phdr *prog_hdr;
@@ -168,7 +169,7 @@ int main(int argc, char *argv[])
         }
 
         /* initialize libdisasm */
-        x86_init(opt_none, quikdis_reporter);
+        x86_init(opt_none, quikdis_reporter, NULL);
 
         /* load target */
         target_fd = open(argv[1], O_RDONLY);
@@ -242,7 +243,7 @@ int main(int argc, char *argv[])
                 printf("QUICKDIS Disassembly following entry point\n");
                 x86_disasm_forward( buf, buf_len, buf_rva, entry,
                                     quikdis_native_print, NULL,
-                                    quikdis_resolver );
+                                    quikdis_resolver, NULL );
 
 
                 /* ------------------------------------------- */

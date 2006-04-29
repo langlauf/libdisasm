@@ -29,8 +29,9 @@ static op_implicit_list_t list_aad[] =
 
 static op_implicit_list_t list_call[] = 
 	/* E8, FF, 9A, FF : CALL : rw ESP, rw EIP */
+	/* C2, C3, CA, CB : RET  : rw ESP, rw EIP */
 	{{ OP_R | OP_W, REG_EIP_INDEX }, 
-	 { OP_R | OP_W, REG_ESP_INDEX }, {0}};	/* call */
+	 { OP_R | OP_W, REG_ESP_INDEX }, {0}};	/* call, ret */
 
 static op_implicit_list_t list_cbw[] = 
 	/* 98 : CBW : r AL, rw AX */
@@ -80,7 +81,8 @@ static op_implicit_list_t list_daa[] =
 
 static op_implicit_list_t list_idiv[] = 
 	/* F6 : DIV, IDIV : r AX, w AL, w AH */
-	{{ OP_R, REG_DWORD_OFFSET }, 
+	/* FIXED: first op was EAX, not Aw. TODO: verify! */
+	{{ OP_R, REG_WORD_OFFSET }, 
 	  { OP_W, REG_BYTE_OFFSET },
 	  { OP_W, REG_BYTE_OFFSET + 4 }, {0}};	/* div */
 
@@ -192,7 +194,8 @@ static op_implicit_list_t list_ltr[] =
 
 static op_implicit_list_t list_pop[] = 
 	/* 8F, 58, 1F, 07, 17, 0F A1, 0F A9 : POP : rw ESP */
-	{{ OP_R | OP_W, REG_ESP_INDEX }, {0}};	/* pop */
+	/* FF, 50, 6A, 68, 0E, 16, 1E, 06, 0F A0, 0F A8 : PUSH : rw ESP */
+	{{ OP_R | OP_W, REG_ESP_INDEX }, {0}};	/* pop, push */
 
 static op_implicit_list_t list_popad[] = 
 	/* 61 : POPAD : rw esp, w edi esi ebp ebx edx ecx eax */
@@ -259,44 +262,54 @@ static op_implicit_list_t list_sahf[] =
 
 static op_implicit_list_t list_sgdt[] = 
 	/* 0F : SGDT : r gdtr */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* sgdt */
 
 static op_implicit_list_t list_sidt[] = 
 	/* 0F : SIDT : r idtr */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* sidt */
 
 static op_implicit_list_t list_sldt[] = 
 	/* 0F : SLDT : r ldtr */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* sldt */
 
 static op_implicit_list_t list_smsw[] = 
 	/* 0F : SMSW : r CR0 */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* smsw */
 
 static op_implicit_list_t list_stmxcsr[] = 
 	/* 0F AE : STMXCSR : r MXCSR */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* stmxcsr */
 
 static op_implicit_list_t list_str[] = 
 	/* 0F 00 : STR : r TR (task register) */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* str */
 
 static op_implicit_list_t list_sysenter[] = 
 	/* 0F 34 : SYSENTER : w cs, w eip, w ss, w esp, r CR0, w eflags
 	 *         r sysenter_cs_msr, sysenter_esp_msr, sysenter_eip_msr */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* sysenter */
 
 static op_implicit_list_t list_sysexit[] = 
 	/* 0F 35 : SYSEXIT : r edx, r ecx, w cs, w eip, w ss, w esp
 	 * 	   r sysenter_cs_msr */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* sysexit */
 
 static op_implicit_list_t list_wrmsr[] = 
 	/* 0F 30 : WRMST : r edx, r eax, r ecx */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* wrmsr */
 
 static op_implicit_list_t list_xlat[] = 
 	/* D7 : XLAT : rw al r ebx (ptr) */
+	/* TODO: finish this! */
 	{{ OP_R, REG_DWORD_OFFSET }, {0}};		/* xlat */
 /* TODO:
  * monitor 0f 01 c8 eax OP_R ecx OP_R edx OP_R
@@ -329,8 +342,8 @@ op_implicit_list_t *op_implicit_list[] = {
 	list_pushfd, list_rdmsr, list_rdpmc, list_rdtsc,	/* 37 - 40 */
 	/* NOTE: 'REP' is a hack since it is a prefix: if its position
 	 * in the table changes, then change IDX_IMPLICIT_REP in the .h */
-	list_rep, list_rsm, list_sahf, list_sgdt,		/* 42 - 44 */
-	list_sidt, list_sldt, list_smsw, list_stmxcsr,		/* 44 - 48 */
+	list_rep, list_rsm, list_sahf, list_sgdt,		/* 41 - 44 */
+	list_sidt, list_sldt, list_smsw, list_stmxcsr,		/* 45 - 48 */
 	list_str, list_sysenter, list_sysexit, list_wrmsr,	/* 49 - 52 */
 	list_xlat, list_monitor, list_mwait,			/* 53 - 55*/
 	NULL						/* end of list */
