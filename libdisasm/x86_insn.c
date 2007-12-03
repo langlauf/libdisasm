@@ -16,7 +16,7 @@ int x86_insn_is_valid( x86_insn_t *insn ) {
 	return 0;
 }
 
-unsigned long x86_get_address( x86_insn_t *insn ) {
+uint32_t x86_get_address( x86_insn_t *insn ) {
 	x86_oplist_t *op_lst;
         if (! insn || ! insn->operands ) {
         	return 0;
@@ -27,7 +27,7 @@ unsigned long x86_get_address( x86_insn_t *insn ) {
 			return op_lst->op.data.offset;
 		} else if ( op_lst->op.type == op_absolute ) {
 			if ( op_lst->op.datatype == op_descr16 ) {
-				return (unsigned long)
+				return (uint32_t)
 					op_lst->op.data.absolute.offset.off16;
 			}
 			return op_lst->op.data.absolute.offset.off32;
@@ -37,7 +37,7 @@ unsigned long x86_get_address( x86_insn_t *insn ) {
 	return 0;
 }
 
-long x86_get_rel_offset( x86_insn_t *insn ) {
+int32_t x86_get_rel_offset( x86_insn_t *insn ) {
 	x86_oplist_t *op_lst;
         if (! insn || ! insn->operands ) {
         	return 0;
@@ -45,7 +45,7 @@ long x86_get_rel_offset( x86_insn_t *insn ) {
 
 	for (op_lst = insn->operands; op_lst; op_lst = op_lst->next ) {
 		if ( op_lst->op.type == op_relative_near ) {
-			return (long) op_lst->op.data.relative_near;
+			return (int32_t) op_lst->op.data.relative_near;
 		} else if ( op_lst->op.type == op_relative_far ) {
 			return op_lst->op.data.relative_far;
 		}
@@ -147,11 +147,12 @@ unsigned int x86_operand_size( x86_op_t *op ) {
                 case op_fpustate32:  return 108;
                 case op_fpregset: return 512;
 		case op_fpreg: return 10;
+		case op_none: return 0;
         }
         return(4);      /* default size */
 }
 
-void x86_set_insn_addr( x86_insn_t *insn, unsigned long addr ) {
+void x86_set_insn_addr( x86_insn_t *insn, uint32_t addr ) {
         if ( insn ) insn->addr = addr;
 }
 

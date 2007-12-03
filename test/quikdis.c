@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 #include <elf.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include "libdis.h"
 
 void quikdis_reporter( enum x86_report_codes code, void *arg, void *junk ) {
@@ -63,7 +64,7 @@ void quikdis_manual_print( x86_insn_t *insn, void *arg ) {
 	x86_op_t *op;
         int i;
 
-        printf("%08lX", insn->addr );
+        printf("%08" PRIX32, insn->addr );
         for ( i = 0; i < 10; i++ ) {
                 if ( i < insn->size ) {
                         printf(" %02X", insn->bytes[i]);
@@ -127,7 +128,7 @@ static int rva_list_add( unsigned long rva ) {
 /* In the resolver, we keep a list of RVAs we have seen and weed these out.
  * Needless to say, this is a simple example with poor performance. */
 
-long quikdis_resolver( x86_op_t *op, x86_insn_t *insn, void *arg ) {
+int32_t quikdis_resolver( x86_op_t *op, x86_insn_t *insn, void *arg ) {
         long retval = -1;
 
         if (! rva_list_add(insn->addr) ) {
@@ -175,7 +176,7 @@ int main(int argc, char *argv[])
         target_fd = open(argv[1], O_RDONLY);
         fstat(target_fd, &sb);
         image = mmap(0, sb.st_size, PROT_READ, MAP_SHARED, target_fd, 0);
-        if ((int) image < 1)
+        if (image == (void*)-1)
                 return (-1);
         close(target_fd);
         printf("Target File Name: %s\n", argv[1]);

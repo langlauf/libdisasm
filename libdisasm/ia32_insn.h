@@ -33,7 +33,7 @@
                 memcpy( i->bytes, buf, 1 );
 
 
-unsigned int ia32_disasm_addr( unsigned char * buf, size_t buf_len, 
+size_t ia32_disasm_addr( unsigned char * buf, size_t buf_len, 
 		x86_insn_t *insn);
 
 
@@ -42,14 +42,16 @@ unsigned int ia32_disasm_addr( unsigned char * buf, size_t buf_len,
 typedef struct {
    unsigned int table;          /* escape to this sub-table */
    unsigned int mnem_flag;      /* Flags referring to mnemonic */
+   unsigned int notes;          /* Notes for this instruction */
    unsigned int dest_flag, src_flag, aux_flag; /* and for specific operands */
    unsigned int cpu;            /* minimumCPU [AND with clocks?? */
    char mnemonic[16];           /* buffers for building instruction */
-   long dest;
-   long src;
-   long aux;
+   char mnemonic_att[16];       /* at&t style mnemonic name */
+   int32_t dest;
+   int32_t src;
+   int32_t aux;
    unsigned int flags_effected;
-   unsigned int implicit_ops;	/* implicit operads */
+   unsigned int implicit_ops;	/* implicit operands */
 } ia32_insn_t;
 
 
@@ -57,9 +59,11 @@ typedef struct {
 /* --------------------------------------------------------- Prefixes */
 /* Prefix Flags */
 /* Prefixes, same order as in the manual */
-#define PREFIX_LOCK       0x0001
+/* had to reverse the values of the first three as they were entered into
+ * libdis.h incorrectly. */
+#define PREFIX_LOCK       0x0004
 #define PREFIX_REPNZ      0x0002
-#define PREFIX_REPZ       0x0004
+#define PREFIX_REPZ       0x0001
 #define PREFIX_OP_SIZE    0x0010
 #define PREFIX_ADDR_SIZE  0x0020
 #define PREFIX_CS         0x0100
@@ -162,6 +166,7 @@ typedef struct {
 #define OPTYPE_v   	0x0D000000 /* hword or word */
 #define OPTYPE_w   	0x0E000000 /* hword */
 #define OPTYPE_m   	0x0F000000	/* to handle LEA */
+#define OPTYPE_none 0xFF000000 /* no valid operand size, INVLPG */
 
 /* custom ones for FPU instructions */
 #define OPTYPE_fs	0x10000000	/* pointer to single-real*/
@@ -247,15 +252,17 @@ typedef struct {		/* Assembly instruction tables */
 
 /* ------------------------------------------'Cooked' Instruction Type Info */
 /* high-bit opcode types/insn meta-types */
-#define INS_NOTE_PREFIX		0x10000000	/* insn is a prefix */
-#define INS_NOTE_SUFFIX		0x20000000	/* followed by a suffix byte */
-#define INS_NOTE_RING0		0x01000000	/* insn is privileged */
-#define INS_NOTE_SMM		0x02000000	/* Sys Mgt Mode only */
-#define INS_NOTE_SERIAL		0x04000000	/* serializes */
+#define INS_FLAG_PREFIX		0x10000000	/* insn is a prefix */
+#define INS_FLAG_SUFFIX		0x20000000	/* followed by a suffix byte */
+#define INS_FLAG_MASK    	0xFF000000
+
+/* insn notes */
+#define INS_NOTE_RING0		0x00000001	/* insn is privileged */
+#define INS_NOTE_SMM		0x00000002	/* Sys Mgt Mode only */
+#define INS_NOTE_SERIAL		0x00000004	/* serializes */
+#define INS_NOTE_NONSWAP    0x00000008  /* insn is not swapped in att format */ // could be separate field?
+#define INS_NOTE_NOSUFFIX   0x00000010  /* insn has no size suffix in att format */ // could be separate field?
 //#define INS_NOTE_NMI		
-   /* instruction modifiers */
-#define INS_NOTE_MASK    	0xFF00000
-#define INS_NOTE( type )       ( type & INS_NOTE_MASK )
 
 #define INS_INVALID 	0
 
@@ -389,6 +396,7 @@ typedef struct {		/* Assembly instruction tables */
 #define INS_TRACE	(INS_TRAPS | 0x06)	/* gen single step trap */
 #define INS_INVALIDOP	(INS_TRAPS | 0x07)	/* gen invalid insn */
 #define INS_OFLOW	(INS_TRAPS | 0x08)	/* gen overflow trap */
+#define INS_ICEBP	(INS_TRAPS | 0x09)	/* ICE breakpoint */
 
 /* INS_SYSTEM */
 #define INS_HALT	(INS_SYSTEM | 0x01)	/* halt machine */
@@ -400,7 +408,8 @@ typedef struct {		/* Assembly instruction tables */
 #define INS_NOP		(INS_OTHER | 0x01)
 #define INS_BCDCONV	(INS_OTHER | 0x02)	/* convert to/from BCD */
 #define INS_SZCONV	(INS_OTHER | 0x03)	/* convert size of operand */
-#define INS_UNKNOWN	(INS_OTHER | 0x04)
+#define INS_SALC	(INS_OTHER | 0x04)	/* set %al on carry */
+#define INS_UNKNOWN	(INS_OTHER | 0x05)
  
 
 #define INS_TYPE_MASK	0xFFFF
@@ -470,11 +479,11 @@ typedef struct {		/* Assembly instruction tables */
 #define X86_EXEC_UNITS
 
 typedef struct {	/* representation of an insn during decoding */
-	unsigned long flags;		/* runtime settings */
+	uint32_t flags;		/* runtime settings */
 	/* instruction prefixes and other foolishness */
-	unsigned long prefix;		/* encoding of prefix */
+	uint32_t prefix;		/* encoding of prefix */
 	char prefix_str[16];		/* mnemonics for prefix */
-	unsigned long branch_hint;	/* gah! */
+	uint32_t branch_hint;	/* gah! */
 	unsigned int cpu_ver;		/* TODO: cpu version */
 	unsigned int clocks;		/* TODO: clock cycles: min/max */
 	unsigned char last_prefix;

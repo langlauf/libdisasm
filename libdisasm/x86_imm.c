@@ -1,13 +1,14 @@
 #include "qword.h"
 #include "x86_imm.h"
 
+#include <stdio.h>
 
 unsigned int x86_imm_signsized( unsigned char * buf, size_t buf_len,
 				void *dest, unsigned int size ) {
 	signed char *cp = (signed char *) dest;
 	signed short *sp = (signed short *) dest;
-	signed long *lp = (signed long *) dest;
-	qword *qp = (qword *) dest;
+	int32_t *lp = (int32_t *) dest;
+	qword_t *qp = (qword_t *) dest;
 
 	if ( size > buf_len ) {
 		return 0;
@@ -24,11 +25,11 @@ unsigned int x86_imm_signsized( unsigned char * buf, size_t buf_len,
 			break;
 		case 6:
 		case 8:		/* QWORD */
-			*qp = *((qword *) buf);
+			*qp = *((qword_t *) buf);
 			break;
 		case 4:		/* DWORD */
 		default:
-			*lp = *((signed long *) buf);
+			*lp = *((int32_t *) buf);
 			break;
 	}
 	return (size);
@@ -38,8 +39,8 @@ unsigned int x86_imm_sized( unsigned char * buf, size_t buf_len, void *dest,
 			    unsigned int size ) {
 	unsigned char *cp = (unsigned char *) dest;
 	unsigned short *sp = (unsigned short *) dest;
-	unsigned long *lp = (unsigned long *) dest;
-	qword *qp = (qword *) dest;
+	uint32_t *lp = (uint32_t *) dest;
+	qword_t *qp = (qword_t *) dest;
 
 	if ( size > buf_len ) {
 		return 0;
@@ -56,11 +57,11 @@ unsigned int x86_imm_sized( unsigned char * buf, size_t buf_len, void *dest,
 			break;
 		case 6:
 		case 8:		/* QWORD */
-			*qp = *((qword *) buf);
+			*qp = *((qword_t *) buf);
 			break;
 		case 4:		/* DWORD */
 		default:
-			*lp = *((unsigned long *) buf);
+			*lp = *((uint32_t *) buf);
 			break;
 	}
 

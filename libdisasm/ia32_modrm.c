@@ -64,6 +64,31 @@ int sib_idx[] = {0, 1, 2, 3, SIB_INDEX_NONE, 5, 6, 7 };
 int sib_bas[] = {0, 1, 2, 3, 4, SIB_SCALE_NOBASE, 6, 7 };
 #endif
 
+/* this is needed to replace x86_imm_signsized() which does not sign-extend
+ * to dest */
+static unsigned int imm32_signsized( unsigned char *buf, size_t buf_len,
+				     int32_t *dest, unsigned int size ) {
+	if ( size > buf_len ) {
+		return 0;
+	}
+
+	switch (size) {
+		case 1:
+			*dest = *((signed char *) buf);
+			break;
+		case 2:
+			*dest = *((signed short *) buf);
+			break;
+		case 4:
+		default:
+			*dest = *((signed int *) buf);
+			break;
+	}
+
+	return size;
+}
+
+
 
 static void byte_decode(unsigned char b, struct modRM_byte *modrm) {
 	/* generic bitfield-packing routine */
@@ -88,14 +113,14 @@ static size_t sib_decode( unsigned char *buf, size_t buf_len, x86_ea_t *ea,
 		return 0;
 	}
 
-	byte_decode( *buf, (struct modRM_byte *) &sib );  /* get bit-fields */
+	byte_decode( *buf, (struct modRM_byte *)(void*)&sib );  /* get bit-fields */
 
 	if ( sib.base == SIB_BASE_EBP && ! mod ) {  /* if base == 101 (ebp) */
 	    /* IF BASE == EBP, deal with exception */
 		/* IF (ModR/M did not create a Disp */
 		/* ... create a 32-bit Displacement */
-		x86_imm_signsized( &buf[1], buf_len, &ea->disp, sizeof(long));
-		ea->disp_size = sizeof(long);
+		imm32_signsized( &buf[1], buf_len, &ea->disp, sizeof(int32_t));
+		ea->disp_size = sizeof(int32_t);
 		ea->disp_sign = (ea->disp < 0) ? 1 : 0;
 		size += 4;	/* add sizeof disp to count */
 
@@ -162,12 +187,12 @@ static size_t modrm_decode16( unsigned char *buf, unsigned int buf_len,
 	--buf_len;
 
 	if ( modrm->mod == MOD16_MOD_DISP8 ) {
-		x86_imm_signsized( buf, buf_len, &ea->disp, sizeof(char) );
+		imm32_signsized( buf, buf_len, &ea->disp, sizeof(char) );
 		ea->disp_sign = (ea->disp < 0) ? 1 : 0;
 		ea->disp_size = sizeof(char);
 		size += sizeof(char);
 	} else if ( modrm->mod == MOD16_MOD_DISP16 ) {
-		x86_imm_signsized( buf, buf_len, &ea->disp, sizeof(short) );
+		imm32_signsized( buf, buf_len, &ea->disp, sizeof(short) );
 		ea->disp_sign = (ea->disp < 0) ? 1 : 0;
 		ea->disp_size = sizeof(short);
 		size += sizeof(short);
@@ -221,9 +246,9 @@ size_t ia32_modrm_decode( unsigned char *buf, unsigned int buf_len,
 		if (modrm.rm == MODRM_RM_NOREG) {	/* if r/m == 101 */
 			/* IF RM == No Register, just Displacement */
 			/* This is an Intel Moronic Exception TM */
-			x86_imm_signsized( buf, buf_len, &ea->disp, 
-					sizeof(long) );
-			ea->disp_size = sizeof(long);
+			imm32_signsized( buf, buf_len, &ea->disp, 
+					sizeof(int32_t) );
+			ea->disp_size = sizeof(int32_t);
 			ea->disp_sign = (ea->disp < 0) ? 1 : 0;
 			size += 4;	/* add sizeof disp to count */
 
@@ -254,8 +279,7 @@ size_t ia32_modrm_decode( unsigned char *buf, unsigned int buf_len,
 		/* ELSE mod + r/m specify a disp##[base] or disp##(SIB) */
 		if (modrm.mod == MODRM_MOD_DISP8) {		/* mod == 01 */
 			/* If this is an 8-bit displacement */
-			/* uh, this needs to be sign-extended */
-			x86_imm_signsized( buf, buf_len, &ea->disp, 
+			imm32_signsized( buf, buf_len, &ea->disp, 
 					sizeof(char));
 			ea->disp_size = sizeof(char);
 			ea->disp_sign = (ea->disp < 0) ? 1 : 0;
@@ -263,7 +287,7 @@ size_t ia32_modrm_decode( unsigned char *buf, unsigned int buf_len,
 
 		} else {
 			/* Displacement is dependent on address size */
-			x86_imm_signsized( buf, buf_len, &ea->disp, 
+			imm32_signsized( buf, buf_len, &ea->disp, 
 					insn->addr_size);
 			ea->disp_size = insn->addr_size;
 			ea->disp_sign = (ea->disp < 0) ? 1 : 0;

@@ -1,0 +1,2 @@
+EXTRADIST = \
+	libdisasm.txt

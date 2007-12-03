@@ -27,8 +27,8 @@ extern ia32_settings_t ia32_settings;
 #  define INLINE inline
 #endif
 
-/* for caluclating stack modification based on an operand */
-static INLINE long long_from_operand( x86_op_t *op ) {
+/* for calculating stack modification based on an operand */
+static INLINE int32_t long_from_operand( x86_op_t *op ) {
 
 	if (! IS_IMM(op) ) {
 		return 0L;
@@ -36,11 +36,11 @@ static INLINE long long_from_operand( x86_op_t *op ) {
 
 	switch ( op->datatype ) {
 		case op_byte:
-			return (long) op->data.sbyte;
+			return (int32_t) op->data.sbyte;
 		case op_word:
-			return (long) op->data.sword;
+			return (int32_t) op->data.sword;
 		case op_qword:
-			return (long) op->data.sqword;
+			return (int32_t) op->data.sqword;
 		case op_dword:
 			return op->data.sdword;
 		default:
@@ -174,12 +174,15 @@ static void ia32_handle_cpu( x86_insn_t *insn, unsigned int cpu ) {
 
 /* handle mnemonic type and group */
 static void ia32_handle_mnemtype(x86_insn_t *insn, unsigned int mnemtype) {
-	//unsigned int flags = (INS_NOTE( mnemtype )) >> 16;
-	unsigned int type = mnemtype & ~INS_NOTE_MASK;
+	unsigned int type = mnemtype & ~INS_FLAG_MASK;
         insn->group = (enum x86_insn_group) (INS_GROUP(type)) >> 12;
         insn->type = (enum x86_insn_type) INS_TYPE(type);
-	insn->note = (enum x86_insn_note) (mnemtype & 0xF00000) >> 20;
 
+	return;
+}
+
+static void ia32_handle_notes(x86_insn_t *insn, unsigned int notes) {
+	insn->note = (enum x86_insn_note) notes;
 	return;
 }
 
@@ -249,6 +252,7 @@ static void reg_32_to_16( x86_op_t *op, x86_insn_t *insn, void *arg ) {
 
 static void handle_insn_metadata( x86_insn_t *insn, ia32_insn_t *raw_insn ) {
 	ia32_handle_mnemtype( insn, raw_insn->mnem_flag );
+	ia32_handle_notes( insn, raw_insn->notes );
 	ia32_handle_eflags( insn, raw_insn->flags_effected );
 	ia32_handle_cpu( insn, raw_insn->cpu );
 	ia32_stack_mod( insn );
@@ -275,7 +279,12 @@ static size_t ia32_decode_insn( unsigned char *buf, size_t buf_len,
 
 
 	/*  ++++   1. Copy mnemonic and mnemonic-flags to CODE struct */
-	strncpy( insn->mnemonic, raw_insn->mnemonic, 16 );
+	if ((ia32_settings.options & opt_att_mnemonics) && raw_insn->mnemonic_att[0]) {
+		strncpy( insn->mnemonic, raw_insn->mnemonic_att, 16 );
+	}
+	else {
+		strncpy( insn->mnemonic, raw_insn->mnemonic, 16 );
+	}
 	ia32_handle_prefix( insn, prefixes );
 
 	handle_insn_metadata( insn, raw_insn );
@@ -351,7 +360,7 @@ static int uses_modrm_flag( unsigned int flag ) {
 }
 
 /* This routine performs the actual byte-by-byte opcode table lookup.
- * Origially it was pretty simple: get a byte, adjust it to a proper
+ * Originally it was pretty simple: get a byte, adjust it to a proper
  * index into the table, then check the table row at that index to
  * determine what to do next. But is anything that simple with Intel?
  * This is now a huge, convoluted mess, mostly of bitter comments. */
@@ -414,7 +423,7 @@ size_t ia32_table_lookup( unsigned char *buf, size_t buf_len,
 	*raw_insn = &(table_desc->table[op]);
 	//printf("BYTE %X TABLE %d OP %X\n", buf[0], table, op ); 
 
-	if ( (*raw_insn)->mnem_flag & INS_NOTE_PREFIX ) {
+	if ( (*raw_insn)->mnem_flag & INS_FLAG_PREFIX ) {
 		prefix = (*raw_insn)->mnem_flag & PREFIX_MASK;
 	}
 
@@ -436,8 +445,14 @@ size_t ia32_table_lookup( unsigned char *buf, size_t buf_len,
 			next_len = buf_len;
 		} else {
 			/* "normal" opcode: advance to next byte in buffer */
-			next = &buf[1];
-			next_len = buf_len - 1;
+			if ( buf_len > 1 ) {
+				next = &buf[1];
+				next_len = buf_len - 1;
+			}
+			else {
+				// buffer is truncated 
+				return INVALID_INSN;
+			}
 		}
 		/* we encountered a multibyte opcode: recurse using the
 		 * table specified in the opcode definition */
@@ -453,13 +468,17 @@ size_t ia32_table_lookup( unsigned char *buf, size_t buf_len,
 		if ( prefix && ( sub_size == INVALID_INSN  ||
 		       INS_TYPE((*raw_insn)->mnem_flag) == INS_INVALID ) ) {
 			/* this is a prefix, not an SSE insn :
-			 * lookup next byte in main table */
+			 * lookup next byte in main table,
+			 * subsize will be reset during the
+			 * main table lookup */
 			recurse_table = 1;
 		} else {
 			/* this is either a subtable (two-byte) insn
 			 * or an invalid insn: either way, set prefix
 			 * to NULL and end the opcode lookup */
 			prefix = 0;
+			// short-circuit lookup on invalid insn
+			if (sub_size == INVALID_INSN) return INVALID_INSN;
 		}
 	} else if ( prefix ) {
 		recurse_table = 1;
@@ -473,6 +492,9 @@ size_t ia32_table_lookup( unsigned char *buf, size_t buf_len,
 		 * lookup of the next byte */
 		sub_size = ia32_table_lookup( &buf[1], buf_len - 1, table, 
 				raw_insn, prefixes );
+
+		// short-circuit lookup on invalid insn
+		if (sub_size == INVALID_INSN) return INVALID_INSN;
 
 		/* a bit of a hack for branch hints */
 		if ( prefix & BRANCH_HINT_MASK ) {
@@ -524,7 +546,7 @@ static size_t handle_insn_suffix( unsigned char *buf, size_t buf_len,
 	table_desc = &ia32_tables[raw_insn->table]; 
 	size = ia32_table_lookup( buf, buf_len, raw_insn->table, &sfx_insn,
 				 &prefixes );
-	if (! size || sfx_insn->mnem_flag == INS_INVALID ) {
+	if (size == INVALID_INSN || sfx_insn->mnem_flag == INS_INVALID ) {
 		return 0;
 	}
 
@@ -568,7 +590,7 @@ size_t ia32_disasm_addr( unsigned char * buf, size_t buf_len,
 
 	/* Perform recursive table lookup starting with main table (0) */
 	size = ia32_table_lookup(buf, buf_len, idx_Main, &raw_insn, &prefixes);
-	if ( size == INVALID_INSN || size > buf_len ) {
+	if ( size == INVALID_INSN || size > buf_len || raw_insn->mnem_flag == INS_INVALID ) {
 		MAKE_INVALID( insn, buf );
 		/* TODO: set errno */
 		return 0;
@@ -578,7 +600,7 @@ size_t ia32_disasm_addr( unsigned char * buf, size_t buf_len,
 	 * the rest of the instruction. */
 	size += ia32_decode_insn( &buf[size], buf_len - size, raw_insn, insn, 
 				  prefixes );
-	if ( raw_insn->mnem_flag & INS_NOTE_SUFFIX ) {
+	if ( raw_insn->mnem_flag & INS_FLAG_SUFFIX ) {
 		/* AMD 3DNow! suffix -- get proper operand type here */
 		sfx_size = handle_insn_suffix( &buf[size], buf_len - size,
 				raw_insn, insn );

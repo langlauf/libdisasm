@@ -94,7 +94,7 @@ static int ia32_invariant_modrm( unsigned char *in, unsigned char *out,
 	if ( ! mode_16 && modrm.rm == MODRM_RM_SIB && 
 			      modrm.mod != MODRM_MOD_NOEA ) {
 		size ++;
-		byte_decode(*cin, (struct modRM_byte *)&sib);
+		byte_decode(*cin, (struct modRM_byte *)(void*)&sib);
 
 		out[1] = in[1];	/* save sib byte */
 		cin = &in[2];
@@ -280,6 +280,7 @@ size_t ia32_disasm_invariant( unsigned char * buf, size_t buf_len,
 		x86_invariant_t *inv ) {
 	ia32_insn_t *raw_insn = NULL;
 	unsigned int prefixes;
+	unsigned int type;
 	size_t size;
 	
 	/* Perform recursive table lookup starting with main table (0) */
@@ -292,6 +293,10 @@ size_t ia32_disasm_invariant( unsigned char * buf, size_t buf_len,
 	/* copy opcode bytes to buffer */
 	memcpy( inv->bytes, buf, size );
 
+	/* set mnemonic type and group */
+	type = raw_insn->mnem_flag & ~INS_FLAG_MASK;
+        inv->group = (enum x86_insn_group) (INS_GROUP(type)) >> 12;
+        inv->type = (enum x86_insn_type) INS_TYPE(type);
 
 	/* handle operands */
 	size += ia32_decode_invariant( buf + size, buf_len - size, raw_insn, 

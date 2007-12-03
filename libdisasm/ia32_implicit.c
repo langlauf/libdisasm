@@ -13,8 +13,8 @@
  *   would have 'write only' access for AX and 'read only' access for AL,
  *   even though both AL and AX are read and written */
 typedef struct {
-	unsigned long type;
-	unsigned long operand;
+	uint32_t type;
+	uint32_t operand;
 } op_implicit_list_t;
 
 static op_implicit_list_t list_aaa[] = 
@@ -351,7 +351,7 @@ op_implicit_list_t *op_implicit_list[] = {
 
 #define LAST_IMPL_IDX 55
 
-static void handle_impl_reg( x86_op_t *op, unsigned long val ) {
+static void handle_impl_reg( x86_op_t *op, uint32_t val ) {
 	x86_reg_t *reg = &op->data.reg;
 	op->type = op_register;
 	ia32_handle_register( reg, (unsigned int) val );
@@ -384,18 +384,38 @@ unsigned int ia32_insn_implicit_ops( x86_insn_t *insn, unsigned int impl_idx ) {
 	}
 
 	for ( list = op_implicit_list[impl_idx]; list->type; list++, num++ ) {
-		op = x86_operand_new( insn );
-		if (! op ) {
+		enum x86_op_access access = (enum x86_op_access) OP_PERM(list->type);
+		enum x86_op_flags  flags  = (enum x86_op_flags) (OP_FLAGS(list->type) >> 12);
+
+		op = NULL;
+		/* In some cases (MUL), EAX is an implicit operand hardcoded in
+                 * the instruction without being explicitly listed in assembly.
+                 * For this situation, find the hardcoded operand and add the
+                 * implied flag rather than adding a new implicit operand. */
+		x86_oplist_t * existing;
+		if (ia32_true_register_id(list->operand) == REG_DWORD_OFFSET) {
+			for ( existing = insn->operands; existing; existing = existing->next ) {
+				if (existing->op.type == op_register &&
+	                            existing->op.data.reg.id == list->operand) {
+					op = &existing->op;
+					break;
+				}
+			}
+		}
+		if (!op) {
+			op = x86_operand_new( insn );
+			/* all implicit operands are registers */
+			handle_impl_reg( op, list->operand );
+			/* decrement the 'explicit count' incremented by default in
+			 * x86_operand_new */
+			insn->explicit_count = insn->explicit_count -1;
+		}
+		if (!op) {
 			return num;	/* gah! return early */
 		}
-		op->access = (enum x86_op_access) OP_PERM(list->type);
-		op->flags = (enum x86_op_flags) (OP_FLAGS(list->type) >> 12);
-		/* all implicit operands are registers */
-		handle_impl_reg( op, list->operand );
+		op->access |= access;
+		op->flags |= flags;
 		op->flags |= op_implied;
-		/* decrement the 'explicit count' incremented by default in
-		 * x86_operand_new */
-		insn->explicit_count = insn->explicit_count -1;
 	}
 	
 	return num;

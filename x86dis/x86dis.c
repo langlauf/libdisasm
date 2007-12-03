@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include <libdis.h>
 
@@ -34,6 +35,7 @@
 
 
 enum dis_req_type { req_addr = 1, req_range, req_entry };
+enum x86_options options = opt_none;
 
 static struct DIS_REQ {
 	unsigned long offset;
@@ -79,7 +81,7 @@ void x86dis_reporter( enum x86_report_codes code, void *arg, void *junk ) {
 			break;
 	}
 
-	fprintf(info.err, "X86DIS ERROR \'%s:\' 0x%08X\n", str, (int)arg);
+	fprintf(info.err, "X86DIS ERROR \'%s:\' 0x%08" PRIXPTR"\n", str, (unsigned long)arg);
 }
 
 /* ---------------------------------------------------------- PRINTER */
@@ -94,7 +96,7 @@ void x86dis_manual_print( x86_insn_t *insn, void *arg ) {
 
 	if ( info.syntax == att_syntax || info.syntax == intel_syntax ) {
 		/* print an address and hex bytes, since libdisasm doesn't */
-		printf("%08lX", insn->addr );
+		printf("%08" PRIX32, insn->addr );
 		for ( i = 0; i < 10; i++ ) {
 			if ( i < insn->size ) {
 				printf(" %02X", insn->bytes[i]);
@@ -140,7 +142,7 @@ static int rva_list_add( unsigned long rva ) {
 /* In the resolver, we keep a list of RVAs we have seen and weed these out.
  * Needless to say, this is a simple example with poor performance. */
 
-long x86dis_resolver( x86_op_t *op, x86_insn_t *insn, void *arg ) {
+int32_t x86dis_resolver( x86_op_t *op, x86_insn_t *insn, void *arg ) {
 	long retval = -1;
 
 	if (! rva_list_add(insn->addr) ) {
@@ -305,7 +307,7 @@ static int act_on_mmap_file( void ){
 	/* create image from file */
 	image = (unsigned char *) mmap( NULL, sb.st_size, PROT_READ, 
 				        MAP_SHARED, fd, 0 );
-	if ( (int) image == -1 ) {
+	if ( image == (void*)-1 ) {
 		fprintf( info.err, "Unable to map anonymous memory: %s\n",
 				strerror(errno) );
 		return(0);
@@ -436,6 +438,12 @@ static int do_opt_s( char *name ) {
 
 	if ( fmt != unknown_syntax ) {
 		info.syntax = fmt;
+		if ( fmt == att_syntax ) {
+			options |= opt_att_mnemonics;
+		}
+		else {
+			options &= ~opt_att_mnemonics;
+		}
 	} else {
 		return(0);
 	}
@@ -479,7 +487,7 @@ static int do_opt_f( char *name ) {
 
 	info.in = fopen(name, "r");
 
-	if ((int)info.in == -1 ) {
+	if ( !info.in ) {
 		info.in = stdin;
 		fprintf( info.err, "Unable to open file %s: %s\n",
 				name, strerror(errno) );
@@ -495,7 +503,7 @@ static int do_opt_o( char *name ) {
 
 	info.out = fopen(name, "w+");
 
-	if ((int)info.out == -1 ) {
+	if ( !info.out ) {
 		info.out = stdout;
 		fprintf( info.err, "Unable to open file %s: %s\n",
 				name, strerror(errno) );
@@ -511,7 +519,7 @@ static int do_opt_l( char *name ) {
 
 	info.err = fopen(name, "w+");
 
-	if ((int)info.err == -1 ) {
+	if ( !info.err ) {
 		info.err = stderr;
 		fprintf( info.err, "Unable to open file %s: %s\n",
 				name, strerror(errno) );
@@ -521,7 +529,7 @@ static int do_opt_l( char *name ) {
 }
 
 static void do_version(char *name) {
-	printf("%s %f Distributed with libdisasm from %s\n", 
+	printf("%s %s Distributed with libdisasm from %s\n", 
 			name, PACKAGE_VERSION, LIBDISASM_URL);
 }
 static void do_help(char *name) {
@@ -664,7 +672,6 @@ int main( int argc, char **argv ) {
 	int x, rv, error = 0;
 	unsigned int len;
 	unsigned long off;
-	enum x86_options options = opt_none;
 
 	/* initialize default file streams */
 	info.in = stdin;

@@ -363,6 +363,10 @@ static size_t decode_operand_size( unsigned int op_type, x86_insn_t *insn,
 			size = insn->addr_size;
 			op->datatype = (size == 4) ?  op_dword : op_word;
 			break;
+		case OPTYPE_none: /* handle weird instructions that have no encoding but use a dword datatype, like invlpg */
+			size = 0;
+			op->datatype = op_none;
+			break;
 		case 0:
 		default:
 			size = insn->op_size;

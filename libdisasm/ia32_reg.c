@@ -151,7 +151,7 @@ static struct {
 	{ REG_SEG_SIZE, reg_seg, 0, "ss" },
 	{ REG_SEG_SIZE, reg_seg, 0, "ds" },
 	{ REG_SEG_SIZE, reg_seg, 0, "fs" },
-	{ REG_SEG_SIZE, reg_seg, 0, "ds" },
+	{ REG_SEG_SIZE, reg_seg, 0, "gs" },
 	/* REG_LDTR_INDEX */
 	{ REG_DWORD_SIZE, reg_sys, 0, "ldtr" },
 	/* REG_GDTR_INDEX */
@@ -217,4 +217,18 @@ void ia32_handle_register( x86_reg_t *reg, size_t id ) {
         reg->id = id;
 
 	return;
+}
+
+size_t ia32_true_register_id( size_t id ) {
+	size_t reg;
+
+	if (! id || id > sz_regtable ) {
+		return 0;
+	}
+
+	reg = id;
+	if (ia32_reg_table[reg].alias) {
+		reg = ia32_reg_aliases[ia32_reg_table[reg].alias].alias;
+	}
+	return reg;
 }

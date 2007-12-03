@@ -36,5 +36,6 @@
 #define REG_EIPMSR_INDEX	92	/* 10 * 8 + 11 + 1 */
 
 void ia32_handle_register( x86_reg_t *reg, size_t id );
+size_t ia32_true_register_id( size_t id );
 
 #endif

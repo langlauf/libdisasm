@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 	f = open(argv[1], O_RDONLY);
 	fstat(f, &sb);
 	image = mmap(0, sb.st_size, PROT_READ, MAP_SHARED, f, 0);
-	if ((int) image < 1) {
+	if (image == (void*)-1) {
 		return (-1);
 	}
 	buf = (unsigned char *) image;

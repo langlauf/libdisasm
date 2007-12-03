@@ -14,7 +14,7 @@
 #endif
 
 unsigned int x86_disasm( unsigned char *buf, unsigned int buf_len,
-                unsigned long buf_rva, unsigned int offset,
+                uint32_t buf_rva, unsigned int offset,
                 x86_insn_t *insn ){
         int len, size;
 	unsigned char bytes[MAX_INSTRUCTION_SIZE];
@@ -35,7 +35,7 @@ unsigned int x86_disasm( unsigned char *buf, unsigned int buf_len,
 
         if ( offset >= buf_len ) {
                 /* another caller screwup ;) */
-                x86_report_error(report_disasm_bounds, (char*)buf_rva+offset);
+                x86_report_error(report_disasm_bounds, (void*)(long)buf_rva+offset);
                 return 0;
         }
 
@@ -53,13 +53,13 @@ unsigned int x86_disasm( unsigned char *buf, unsigned int buf_len,
 
         /* check and see if we had an invalid instruction */
         if (! size ) {
-                x86_report_error(report_invalid_insn, (char*)buf_rva+offset );
+                x86_report_error(report_invalid_insn, (void*)(long)buf_rva+offset );
                 return 0;
         }
 
         /* check if we overran the end of the buffer */
         if ( size > len ) {
-                x86_report_error( report_insn_bounds, (char*)buf_rva + offset );
+                x86_report_error( report_insn_bounds, (void*)(long)buf_rva + offset );
 		MAKE_INVALID( insn, bytes );
 		return 0;
 	}
@@ -70,7 +70,7 @@ unsigned int x86_disasm( unsigned char *buf, unsigned int buf_len,
         return size;
 }
 
-unsigned int x86_disasm_range( unsigned char *buf, unsigned long buf_rva,
+unsigned int x86_disasm_range( unsigned char *buf, uint32_t buf_rva,
                       unsigned int offset, unsigned int len,
                       DISASM_CALLBACK func, void *arg ) {
         x86_insn_t insn;
@@ -112,8 +112,8 @@ static inline int insn_doesnt_return( x86_insn_t *insn ) {
         return( (insn->type == insn_jmp || insn->type == insn_return) ? 1: 0 );
 }
 
-static long internal_resolver( x86_op_t *op, x86_insn_t *insn ){
-        long next_addr = -1;
+static int32_t internal_resolver( x86_op_t *op, x86_insn_t *insn ){
+        int32_t next_addr = -1;
         if ( x86_optype_is_address(op->type) ) {
                 next_addr = op->data.sdword;
         } else if ( op->type == op_relative_near ) {
@@ -125,13 +125,13 @@ static long internal_resolver( x86_op_t *op, x86_insn_t *insn ){
 }
 
 unsigned int x86_disasm_forward( unsigned char *buf, unsigned int buf_len,
-                        unsigned long buf_rva, unsigned int offset,
+                        uint32_t buf_rva, unsigned int offset,
                         DISASM_CALLBACK func, void *arg,
                         DISASM_RESOLVER resolver, void *r_arg ){
         x86_insn_t insn;
         x86_op_t *op;
-        long next_addr;
-        unsigned long next_offset;
+        int32_t next_addr;
+        uint32_t next_offset;
         unsigned int size, count = 0, bytes = 0, cont = 1;
 
         while ( cont && bytes < buf_len ) {
@@ -177,7 +177,7 @@ unsigned int x86_disasm_forward( unsigned char *buf, unsigned int buf_len,
                                 } else  {
                                         /* report unresolved address */
                                         x86_report_error( report_disasm_bounds,
-                                                     (void *) next_addr );
+                                                     (void*)(long)next_addr );
                                 }
                         }
                 } /* end follow_insn */

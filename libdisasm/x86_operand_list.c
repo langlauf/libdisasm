@@ -58,6 +58,7 @@ void x86_oplist_free( x86_insn_t *insn ) {
 		free(op);
 	}
 
+	insn->operands = NULL;
 	insn->operand_count = 0;
 	insn->explicit_count = 0;
 
@@ -86,7 +87,7 @@ int x86_operand_foreach( x86_insn_t *insn, x86_operand_fn func, void *arg,
 		explicit = 0;
 	}
 
-	type = type & 0xF0; /* mask out explicit/implicit operands */
+	type = type & 0x0F; /* mask out explicit/implicit operands */
 
 	for ( list = insn->operands; list; list = list->next ) {
 		if (! implicit && (list->op.flags & op_implied) ) {
@@ -123,10 +124,12 @@ int x86_operand_foreach( x86_insn_t *insn, x86_operand_fn func, void *arg,
 				      (list->op.access & op_read ) ) {
 					continue;
 				}
+				break;
 			case op_xo:
 				if (! (list->op.access & op_execute) ) {
 					continue;
 				}
+				break;
 			case op_rw:
 				if (! (list->op.access & op_write) ||
 				    ! (list->op.access & op_read ) ) {
