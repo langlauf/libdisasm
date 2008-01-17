@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ(2.53)
-AC_INIT(libdisasm, 0.22, bastard-libdisasm@lists.sourceforge.net, libdisasm)
+AC_INIT(libdisasm, 0.23, bastard-libdisasm@lists.sourceforge.net, libdisasm)
 AC_CONFIG_SRCDIR(libdisasm/x86_disasm.c)
 AM_INIT_AUTOMAKE
 

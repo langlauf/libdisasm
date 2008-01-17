@@ -1,2 +1,2 @@
-EXTRADIST = \
+EXTRA_DIST = \
 	libdisasm.txt

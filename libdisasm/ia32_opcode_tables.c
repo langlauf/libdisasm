@@ -21,6 +21,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_OR,  0,   ADDRMETH_RR | OPTYPE_v | OP_W | OP_R,   ADDRMETH_I | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "or", "",   0,   0,   0,  INS_SET_ALL, 0 },
 	 { 0,   INS_PUSH,  0,   ADDRMETH_RS | OPTYPE_w | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "push", "",   1,   0,   0,  0 , 33 },
 	 { idx_0F,   0,   0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
+/* 0x10 */
 	 { 0,   INS_ADD,  0,   ADDRMETH_E | OPTYPE_b | OP_W | OP_R,   ADDRMETH_G | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "adc", "",   0,   0,   0,  INS_SET_ALL|INS_TEST_CARRY, 0 },
 	 { 0,   INS_ADD,  0,   ADDRMETH_E | OPTYPE_v | OP_W | OP_R,   ADDRMETH_G | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "adc", "",   0,   0,   0,  INS_SET_ALL|INS_TEST_CARRY, 0 },
 	 { 0,   INS_ADD,  0,   ADDRMETH_G | OPTYPE_b | OP_W | OP_R,   ADDRMETH_E | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "adc", "",   0,   0,   0,  INS_SET_ALL|INS_TEST_CARRY, 0 },
@@ -37,6 +38,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_SUB,  0,   ADDRMETH_RR | OPTYPE_v | OP_SIGNED | OP_W | OP_R,   ADDRMETH_I | OPTYPE_v | OP_SIGNED | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "sbb", "",   0,   0,   0,  INS_SET_ALL|INS_TEST_CARRY, 0 },
 	 { 0,   INS_PUSH,  0,   ADDRMETH_RS | OPTYPE_w | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "push", "",   3,   0,   0,  0 , 33 },
 	 { 0,   INS_POP,  0,   ADDRMETH_RS | OPTYPE_w | OP_W,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "pop", "",   3,   0,   0,  0 , 33 },
+/* 0x20 */
 	 { 0,   INS_AND,  0,   ADDRMETH_E | OPTYPE_b | OP_W | OP_R,   ADDRMETH_G | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "and", "",   0,   0,   0,  INS_SET_ALL, 0 },
 	 { 0,   INS_AND,  0,   ADDRMETH_E | OPTYPE_v | OP_W | OP_R,   ADDRMETH_G | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "and", "",   0,   0,   0,  INS_SET_ALL, 0 },
 	 { 0,   INS_AND,  0,   ADDRMETH_G | OPTYPE_b | OP_W | OP_R,   ADDRMETH_E | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "and", "",   0,   0,   0,  INS_SET_ALL, 0 },
@@ -53,6 +55,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_SUB,  0,   ADDRMETH_RR | OPTYPE_v | OP_SIGNED | OP_W | OP_R,   ADDRMETH_I | OPTYPE_v | OP_SIGNED | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "sub", "",   0,   0,   0,  INS_SET_ALL, 0 },
 	 { 0,   INS_FLAG_PREFIX | PREFIX_CS | PREFIX_NOTTAKEN,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_BCDCONV,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "das", "",   0,   0,   0,  INS_SET_SIGN|INS_SET_ZERO|INS_SET_CARRY|INS_SET_PARITY|INS_TEST_CARRY, 0 },
+/* 0x30 */
 	 { 0,   INS_XOR,  0,   ADDRMETH_E | OPTYPE_b | OP_W | OP_R,   ADDRMETH_G | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "xor", "",   0,   0,   0,  INS_SET_ALL, 0 },
 	 { 0,   INS_XOR,  0,   ADDRMETH_E | OPTYPE_v | OP_W | OP_R,   ADDRMETH_G | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "xor", "",   0,   0,   0,  INS_SET_ALL, 0 },
 	 { 0,   INS_XOR,  0,   ADDRMETH_G | OPTYPE_b | OP_W | OP_R,   ADDRMETH_E | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "xor", "",   0,   0,   0,  INS_SET_ALL, 0 },
@@ -69,6 +72,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_CMP,  0,   ADDRMETH_RR | OPTYPE_v | OP_R,   ADDRMETH_I | OPTYPE_v | OP_SIGNED | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "cmp", "",   0,   0,   0,  INS_SET_ALL, 0 },
 	 { 0,   INS_FLAG_PREFIX | PREFIX_DS | PREFIX_TAKEN,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_BCDCONV,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "aas", "",   0,   0,   0,  INS_SET_CARRY, 0 },
+/* 0x40 */
 	 { 0,   INS_INC,  0,   ADDRMETH_RR | OPTYPE_v | OP_R | OP_W,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "inc", "",   0,   0,   0,  INS_SET_OFLOW|INS_SET_SIGN|INS_SET_ZERO|INS_SET_PARITY, 0 },
 	 { 0,   INS_INC,  0,   ADDRMETH_RR | OPTYPE_v | OP_R | OP_W,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "inc", "",   1,   0,   0,  INS_SET_OFLOW|INS_SET_SIGN|INS_SET_ZERO|INS_SET_PARITY, 0 },
 	 { 0,   INS_INC,  0,   ADDRMETH_RR | OPTYPE_v | OP_R | OP_W,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "inc", "",   2,   0,   0,  INS_SET_OFLOW|INS_SET_SIGN|INS_SET_ZERO|INS_SET_PARITY, 0 },
@@ -85,6 +89,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_DEC,  0,   ADDRMETH_RR | OPTYPE_v | OP_W | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "dec", "",   5,   0,   0,  INS_SET_OFLOW|INS_SET_SIGN|INS_SET_ZERO|INS_SET_PARITY, 0 },
 	 { 0,   INS_DEC,  0,   ADDRMETH_RR | OPTYPE_v | OP_W | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "dec", "",   6,   0,   0,  INS_SET_OFLOW|INS_SET_SIGN|INS_SET_ZERO|INS_SET_PARITY, 0 },
 	 { 0,   INS_DEC,  0,   ADDRMETH_RR | OPTYPE_v | OP_W | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "dec", "",   7,   0,   0,  INS_SET_OFLOW|INS_SET_SIGN|INS_SET_ZERO|INS_SET_PARITY, 0 },
+/* 0x50 */
 	 { 0,   INS_PUSH,  0,   ADDRMETH_RR | OPTYPE_v | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "push", "",   0,   0,   0,  0 , 33 },
 	 { 0,   INS_PUSH,  0,   ADDRMETH_RR | OPTYPE_v | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "push", "",   1,   0,   0,  0 , 33 },
 	 { 0,   INS_PUSH,  0,   ADDRMETH_RR | OPTYPE_v | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "push", "",   2,   0,   0,  0 , 33 },
@@ -101,6 +106,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_POP,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "pop", "",   5,   0,   0,  0 , 33 },
 	 { 0,   INS_POP,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "pop", "",   6,   0,   0,  0 , 33 },
 	 { 0,   INS_POP,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "pop", "",   7,   0,   0,  0 , 33 },
+/* 0x60 */
 	 { 0,   INS_PUSHREGS,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "pusha", "",   0,   0,   0,  0 , 36 },
 	 { 0,   INS_POPREGS,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "popa", "",   0,   0,   0,  0 , 34 },
 	 { 0,   INS_BOUNDS, INS_NOTE_NONSWAP,   ADDRMETH_G | OPTYPE_v | OP_R,   ADDRMETH_M | OPTYPE_a | OP_SIGNED | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "bound", "",   0,   0,   0,  0 , 0 },
@@ -117,6 +123,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_IN,  0,    ADDRMETH_Y | OPTYPE_v | OP_W,   ADDRMETH_RR | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "ins", "",   0,   2,   0,  0 , 0 },
 	 { 0,   INS_OUT,  0,    ADDRMETH_RR | OPTYPE_b | OP_R,   ADDRMETH_X | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "outs", "",   2,   0,   0,  0 , 0 },
 	 { 0,   INS_OUT,  0,    ADDRMETH_RR | OPTYPE_v | OP_R,   ADDRMETH_X | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "outs", "",   2,   0,   0,  0 , 0 },
+/* 0x70 */
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "jo", "",   0,   0,   0,  INS_TEST_OFLOW, 0 },
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "jno", "",   0,   0,   0,  INS_TEST_NOFLOW, 0 },
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "jc", "",   0,   0,   0,  INS_TEST_CARRY, 0 },
@@ -133,6 +140,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "jge", "",   0,   0,   0,  INS_TEST_SFEQOF, 0 },
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "jle", "",   0,   0,   0,  INS_TEST_ZERO|INS_TEST_OR|INS_TEST_SFNEOF, 0 },
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "jg", "",   0,   0,   0,  INS_TEST_NZERO|INS_TEST_SFEQOF, 0 },
+/* 0x80 */
 	 { idx_80,   0,   0,   ADDRMETH_E | OPTYPE_b,   ADDRMETH_I | OPTYPE_b,   ARG_NONE,  cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { idx_81,   0,   0,   ADDRMETH_E | OPTYPE_v,   ADDRMETH_I | OPTYPE_v,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { idx_82,   0,   0,   ADDRMETH_E | OPTYPE_b,   ADDRMETH_I | OPTYPE_b,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
@@ -149,6 +157,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_MOV,  0,   ADDRMETH_G | OPTYPE_v | OP_W,   ADDRMETH_M | OPTYPE_m | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "lea", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_MOV,  0,   ADDRMETH_S | OPTYPE_w | OP_W,   ADDRMETH_E | OPTYPE_w | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_POP,  0,   ADDRMETH_E | OPTYPE_v | OP_W,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "pop", "",   0,   0,   0,  0 , 33 },
+/* 0x90 */
 	 { 0,   INS_NOP,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "nop", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_XCHG,  0,   ADDRMETH_RR | OPTYPE_v | OP_W | OP_R,   ADDRMETH_RR | OPTYPE_v | OP_W | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "xchg", "",   0,   1,   0,  0 , 0 },
 	 { 0,   INS_XCHG,  0,   ADDRMETH_RR | OPTYPE_v | OP_W | OP_R,   ADDRMETH_RR | OPTYPE_v | OP_W | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "xchg", "",   0,   2,   0,  0 , 0 },
@@ -165,6 +174,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_POPFLAGS,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "popf", "",   0,   0,   0,  0 , 35 },
 	 { 0,   INS_MOV,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "sahf", "",   0,   0,   0,  INS_SET_SIGN|INS_SET_ZERO|INS_SET_PARITY|INS_SET_CARRY, 43 },
 	 { 0,   INS_MOV,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "lahf", "",   0,   0,   0,  0 , 24 },
+/* 0xa0 */
 	 { 0,   INS_MOV,  0,   ADDRMETH_RR | OPTYPE_b | OP_W,   ADDRMETH_O | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_MOV,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ADDRMETH_O | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_MOV,  0,   ADDRMETH_O | OPTYPE_b | OP_W,   ADDRMETH_RR | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   0,   0,   0,  0 , 0 },
@@ -181,6 +191,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_STRLOAD,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ADDRMETH_X| OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "lods", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_STRCMP,  0,   ADDRMETH_RR | OPTYPE_b | OP_R,   ADDRMETH_Y | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "scas", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_STRCMP,  0,   ADDRMETH_RR | OPTYPE_v | OP_R,   ADDRMETH_Y | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "scas", "",   0,   0,   0,  0 , 0 },
+/* 0xb0 */
 	 { 0,   INS_MOV,  0,   ADDRMETH_RR | OPTYPE_b | OP_W,   ADDRMETH_I | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_MOV,  0,   ADDRMETH_RR | OPTYPE_b | OP_W,   ADDRMETH_I | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   1,   0,   0,  0 , 0 },
 	 { 0,   INS_MOV,  0,   ADDRMETH_RR | OPTYPE_b | OP_W,   ADDRMETH_I | OPTYPE_b | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   2,   0,   0,  0 , 0 },
@@ -197,6 +208,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_MOV,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ADDRMETH_I | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   5,   0,   0,  0 , 0 },
 	 { 0,   INS_MOV,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ADDRMETH_I | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   6,   0,   0,  0 , 0 },
 	 { 0,   INS_MOV,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ADDRMETH_I | OPTYPE_v | OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "mov", "",   7,   0,   0,  0 , 0 },
+/* 0xc0 */
 	 { idx_C0,  0,   0,    ADDRMETH_E | OPTYPE_b,   ADDRMETH_I | OPTYPE_b,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { idx_C1,  0,   0,    ADDRMETH_E | OPTYPE_v,   ADDRMETH_I | OPTYPE_b,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_RET,  0,   ADDRMETH_I | OPTYPE_w | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "ret", "",   0,   0,   0,  0 , 3 },
@@ -213,6 +225,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_TRAP,  0,   ADDRMETH_I | OPTYPE_b | OP_R,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "int", "",   0,   0,   0,  0 , 0 },
 	 { 0,   INS_OFLOW,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "into", "",   0,   0,   0,  INS_TEST_OFLOW, 0 },
 	 { 0,   INS_TRET,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "iret", "",   0,   0,   0,  INS_SET_ALL|INS_SET_DIR, 0 },
+/* 0xd0 */
 	 { idx_D0,  0,   0,    ADDRMETH_E | OPTYPE_b,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   1,   0,  0 , 0 },
 	 { idx_D1,  0,   0,   ADDRMETH_E | OPTYPE_v,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   1,   0,  0 , 0 },
 	 { idx_D2,  0,   0,   ADDRMETH_E | OPTYPE_b,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   1,   0,  0 , 0 },
@@ -229,6 +242,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { idx_DD,  0,   0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { idx_DE,  0,   0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { idx_DF,  0,   0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
+/* 0xe0 */
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "loopnz", "",   0,   0,   0,  INS_TEST_NZERO, 31 },
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "loopz", "",   0,   0,   0,  INS_TEST_ZERO, 31 },
 	 { 0,   INS_BRANCHCC,  0,   ADDRMETH_J | OPTYPE_b | OP_X,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "loop", "",   0,   0,   0,  0 , 31 },
@@ -245,6 +259,7 @@ static ia32_insn_t tbl_Main[] = {	/* One-byte Opcodes */
 	 { 0,   INS_IN,  0,   ADDRMETH_RR | OPTYPE_v | OP_W,   ADDRMETH_RR | OPTYPE_w| OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "in", "",   0,   2,   0,  0 , 0 },
 	 { 0,   INS_OUT,  0,   ADDRMETH_RR | OPTYPE_w| OP_R,   ADDRMETH_RR | OPTYPE_b| OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "out", "",   2,   0,   0,  0 , 0 },
 	 { 0,   INS_OUT,  0,   ADDRMETH_RR | OPTYPE_w| OP_R,   ADDRMETH_RR | OPTYPE_v| OP_R,   ARG_NONE,   cpu_80386 | isa_GP,   "out", "",   2,   0,   0,  0 , 0 },
+/* 0xf0 */
 	 { 0,   INS_FLAG_PREFIX | PREFIX_LOCK,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },
 	 { 0, INS_ICEBP,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "icebp", "",   0,   0,   0,  0 , 0 },
 	 { idx_F2,   INS_FLAG_PREFIX | PREFIX_REPNZ,  0,   ARG_NONE,   ARG_NONE,   ARG_NONE,   cpu_80386 | isa_GP,   "", "",   0,   0,   0,  0 , 0 },

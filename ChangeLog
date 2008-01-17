@@ -1,3 +1,8 @@
+0.23    2008-01-16
+	* clarified artistic license
+	* updated opcode comments to include indexes (Jesse Michael)
+	* doc/Makefile.am: corrected to include programming guide
+	* Makefile.am: corrected to include LICENSE file
 
 0.22	2007-12-03
 	* cleaned up build system & added autoconf

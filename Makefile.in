@@ -180,7 +180,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = libdisasm x86dis test doc man perl
 EXTRA_DIST = \
-	autogen.sh
+	LICENSE autogen.sh
 
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive

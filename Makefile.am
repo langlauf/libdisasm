@@ -1,4 +1,4 @@
 SUBDIRS = libdisasm x86dis test doc man perl
 
 EXTRA_DIST = \
-	autogen.sh
+	LICENSE autogen.sh
